@@ -1,0 +1,22 @@
+[package]
+name = "mysql-parser-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+derive-visitor = "0.4.0"
+logos = "0.14.2"
+nom = "7.1.3"
+nom-rule = "0.4.0"
+strum = "0.26.3"
+strum_macros = "0.26.4"
+serde = { version = "1.0.215", features = ["derive"] }
+enum-as-inner = "0.6.1"
+fastrace = "0.7.4"
+ethnum = "1.5.0"
+itertools = "0.13.0"
+ordered-float = "4.5.0"
+fast-float = "0.2.0"
+strsim = "0.11.1"
+pratt = "0.4.0"
+rspack-codespan-reporting = "0.11.2"
