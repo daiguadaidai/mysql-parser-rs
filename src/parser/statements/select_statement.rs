@@ -181,7 +181,7 @@ pub fn field(i: Input) -> IResult<SelectField> {
             sf
         }),
         map(rule!(Ident ~ "." ~ "*"), |(table_name, _, _)| {
-            let tb_name = table_name.text().trim_end_matches(|c| c == '`');
+            let tb_name = table_name.get_trim_start_end_text('`');
 
             let mut sf = SelectField::default();
             sf.field = Field::WildCardField(WildCardField {
@@ -193,8 +193,8 @@ pub fn field(i: Input) -> IResult<SelectField> {
         map(
             rule!(Ident ~ "." ~ Ident ~ "." ~ "*"),
             |(schema_name, _, table_name, _, _)| {
-                let s_name = schema_name.text().trim_end_matches(|c| c == '`');
-                let tb_name = table_name.text().trim_end_matches(|c| c == '`');
+                let s_name = schema_name.get_trim_start_end_text('`');
+                let tb_name = table_name.get_trim_start_end_text('`');
 
                 let mut sf = SelectField::default();
                 sf.field = Field::WildCardField(WildCardField {

@@ -23,6 +23,12 @@ impl<'a> Token<'a> {
     pub fn text(&self) -> &'a str {
         &self.source[std::ops::Range::from(self.span)]
     }
+
+    pub fn get_trim_start_end_text(&self, sep: char) -> &'a str {
+        self.text()
+            .trim_start_matches(|c| c == sep)
+            .trim_end_matches(|c| c == sep)
+    }
 }
 
 impl<'a> std::fmt::Debug for Token<'a> {

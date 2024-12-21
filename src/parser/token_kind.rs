@@ -20,6 +20,9 @@ pub enum TokenKind {
     #[regex(r#"`[_a-zA-Z][_$a-zA-Z0-9]*`"#)]
     Ident,
 
+    #[regex(r#"@[_a-zA-Z][_$a-zA-Z0-9]*"#)]
+    SingleAtIdent,
+
     #[regex(r#"\$[_a-zA-Z][_$a-zA-Z0-9]*"#)]
     IdentVariable,
 
@@ -75,7 +78,7 @@ pub enum TokenKind {
     #[token("%")]
     Modulo,
     #[token("||")]
-    StringConcat,
+    PipesAsOr,
     #[token("(")]
     LParen,
     #[token(")")]
@@ -89,7 +92,7 @@ pub enum TokenKind {
     #[token("::")]
     DoubleColon,
     #[token(":=")]
-    ColonEqual,
+    AssignmentEq,
     #[token(";")]
     SemiColon,
     #[token("\\")]
@@ -1508,6 +1511,7 @@ impl TokenKind {
                 | TokenKind::LiteralFloat
                 | TokenKind::LiteralString
                 | TokenKind::LiteralHex
+                | TokenKind::SingleAtIdent
         )
     }
 
@@ -1535,14 +1539,14 @@ impl TokenKind {
                 | TokenKind::Divide
                 | TokenKind::IntDiv
                 | TokenKind::Modulo
-                | TokenKind::StringConcat
+                | TokenKind::PipesAsOr
                 | TokenKind::LParen
                 | TokenKind::RParen
                 | TokenKind::Comma
                 | TokenKind::Dot
                 | TokenKind::Colon
                 | TokenKind::DoubleColon
-                | TokenKind::ColonEqual
+                | TokenKind::AssignmentEq
                 | TokenKind::SemiColon
                 | TokenKind::Backslash
                 | TokenKind::LBracket
