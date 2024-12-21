@@ -1,5 +1,7 @@
+use crate::ast::ci_str::CIStr;
 use crate::ast::column_name::ColumnName;
 use crate::ast::common::FulltextSearchModifier;
+use crate::ast::functions::TimeUnitType;
 use crate::ast::op_code;
 use crate::ast::row_expr::RowExpr;
 use crate::ast::subquery_expr::SubqueryExpr;
@@ -19,6 +21,9 @@ pub enum ExprNode {
     ExistsSubqueryExpr(ExistsSubqueryExpr),
     UnaryOperationExpr(UnaryOperationExpr),
     MatchAgainst(MatchAgainst),
+    FuncCallExpr(FuncCallExpr),
+    #[drive(skip)]
+    TimeUnitExpr(TimeUnitExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -82,4 +87,31 @@ pub struct MatchAgainst {
     // Modifier
     #[drive(skip)]
     pub modifier: FulltextSearchModifier,
+}
+
+#[derive(Debug, Default)]
+pub enum FuncCallExprType {
+    #[default]
+    Keyword,
+    Generic,
+}
+// FuncCallExpr is for function expression.
+#[derive(Debug, Drive, Default)]
+pub struct FuncCallExpr {
+    #[drive(skip)]
+    pub tp: FuncCallExprType,
+    #[drive(skip)]
+    pub schema: CIStr,
+    // FnName is the function name.
+    #[drive(skip)]
+    pub fn_name: CIStr,
+    // Args is the function args.
+    pub args: Vec<ExprNode>,
+}
+
+// TimeUnitExpr is an expression representing a time or timestamp unit.
+#[derive(Debug)]
+pub struct TimeUnitExpr {
+    // Unit is the time or timestamp unit.
+    pub unit: TimeUnitType,
 }

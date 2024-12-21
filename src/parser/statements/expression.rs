@@ -1,14 +1,16 @@
+use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
-    BinaryOperationExpr, ExprNode, MatchAgainst, UnaryOperationExpr, VariableExpr,
+    BinaryOperationExpr, ExprNode, FuncCallExpr, MatchAgainst, TimeUnitExpr, UnaryOperationExpr,
+    VariableExpr,
 };
 use crate::ast::op_code::OpCode;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::common::{
-    bit_expr, column_name_list, fulltext_search_modifier_opt, log_and, log_or,
+    column_name_list, fulltext_search_modifier_opt, log_and, log_or, time_unit,
 };
-use crate::parser::token_kind::TokenKind::{AssignmentEq, SingleAtIdent, AGAINST, MATCH, NOT};
+use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
 use nom::combinator::map;
 use nom_rule::rule;
@@ -83,3 +85,131 @@ pub fn expression(i: Input) -> IResult<ExprNode> {
         ),
     ))(i)
 }
+
+pub fn bit_expr(i: Input) -> IResult<ExprNode> {
+    alt((
+        map(rule!(#bit_expr ~ "|" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Or,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "&" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::And,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "<<" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::LeftShift,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ ">>" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::RightShift,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "+" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Plus,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "-" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Minus,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(
+            rule!(#bit_expr ~ "+" ~ INTERVAL ~ #expression ~ #time_unit),
+            |(be, _, _, expr, tu)| {
+                let time_expr = ExprNode::TimeUnitExpr(TimeUnitExpr { unit: tu });
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new("DATE_ADD");
+                fn_expr.args = vec![be, expr, time_expr];
+
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(#bit_expr ~ "-" ~ INTERVAL ~ #expression ~ #time_unit),
+            |(be, _, _, expr, tu)| {
+                let time_expr = ExprNode::TimeUnitExpr(TimeUnitExpr { unit: tu });
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new("DATE_SUB");
+                fn_expr.args = vec![be, expr, time_expr];
+
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(INTERVAL ~ #expression ~ #time_unit ~ "+" ~ #bit_expr),
+            |(_, expr, tu, _, be)| {
+                let time_expr = ExprNode::TimeUnitExpr(TimeUnitExpr { unit: tu });
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new("DATE_ADD");
+                fn_expr.args = vec![be, expr, time_expr];
+
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(rule!(#bit_expr ~ "*" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Mul,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "/" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Div,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "%" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Mod,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ DIV ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::IntDiv,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ MOD ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Mod,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#bit_expr ~ "^" ~ #bit_expr), |(l, _, r)| {
+            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                op: OpCode::Xor,
+                l: Some(Box::new(l)),
+                r: Some(Box::new(r)),
+            })
+        }),
+        map(rule!(#simple_expr), |_| {}),
+    ))(i)
+}
+
+pub fn simple_expr(i: Input) -> IResult<ExprNode> {}

@@ -4,18 +4,17 @@ use crate::ast::common::{
     FULLTEXT_SEARCH_MODIFIER_BOOLEAN_MODE, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE,
     FULLTEXT_SEARCH_MODIFIER_WITH_QUERY_EXPANSION,
 };
-use crate::ast::expr_node::{BinaryOperationExpr, ColumnNameExpr, ExprNode};
+use crate::ast::expr_node::ColumnNameExpr;
 use crate::ast::functions::TimeUnitType;
-use crate::ast::op_code::OpCode;
 use crate::mysql::consts::PriorityEnum;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::token_kind::TokenKind::{
     Ident, PipesAsOr, AND, BOOLEAN, DAY, DAY_HOUR, DAY_MICROSECOND, DAY_MINUTE, DAY_SECOND,
-    EXPANSION, HOUR, HOUR_MICROSECOND, HOUR_MINUTE, HOUR_SECOND, IN, LANGUAGE, MICROSECOND, MINUTE,
-    MINUTE_MICROSECOND, MINUTE_SECOND, MODE, MONTH, NATURAL, OR, QUARTER, QUERY, SECOND,
-    SECOND_MICROSECOND, SQL_TSI_DAY, SQL_TSI_HOUR, SQL_TSI_MINUTE, SQL_TSI_MONTH, SQL_TSI_QUARTER,
-    SQL_TSI_SECOND, SQL_TSI_WEEK, SQL_TSI_YEAR, WEEK, WITH, YEAR,
+    EXPANSION, HOUR, HOUR_MICROSECOND, HOUR_MINUTE, HOUR_SECOND, IN, LANGUAGE,
+    MICROSECOND, MINUTE, MINUTE_MICROSECOND, MINUTE_SECOND, MODE, MONTH, NATURAL, OR, QUARTER,
+    QUERY, SECOND, SECOND_MICROSECOND, SQL_TSI_DAY, SQL_TSI_HOUR, SQL_TSI_MINUTE, SQL_TSI_MONTH,
+    SQL_TSI_QUARTER, SQL_TSI_SECOND, SQL_TSI_WEEK, SQL_TSI_YEAR, WEEK, WITH, YEAR,
 };
 use nom::branch::alt;
 use nom::combinator::map;
@@ -155,53 +154,6 @@ pub fn fulltext_search_modifier_opt(i: Input) -> IResult<isize> {
         }),
         map(rule!(IN ~ QUERY ~ EXPANSION), |(_, _, _)| {
             FULLTEXT_SEARCH_MODIFIER_WITH_QUERY_EXPANSION
-        }),
-    ))(i)
-}
-
-pub fn bit_expr(i: Input) -> IResult<ExprNode> {
-    alt((
-        map(rule!(#bit_expr ~ "|" ~ #bit_expr), |(l, _, r)| {
-            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
-                op: OpCode::Or,
-                l: Some(Box::new(l)),
-                r: Some(Box::new(r)),
-            })
-        }),
-        map(rule!(#bit_expr ~ "&" ~ #bit_expr), |(l, _, r)| {
-            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
-                op: OpCode::And,
-                l: Some(Box::new(l)),
-                r: Some(Box::new(r)),
-            })
-        }),
-        map(rule!(#bit_expr ~ "<<" ~ #bit_expr), |(l, _, r)| {
-            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
-                op: OpCode::LeftShift,
-                l: Some(Box::new(l)),
-                r: Some(Box::new(r)),
-            })
-        }),
-        map(rule!(#bit_expr ~ ">>" ~ #bit_expr), |(l, _, r)| {
-            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
-                op: OpCode::RightShift,
-                l: Some(Box::new(l)),
-                r: Some(Box::new(r)),
-            })
-        }),
-        map(rule!(#bit_expr ~ "+" ~ #bit_expr), |(l, _, r)| {
-            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
-                op: OpCode::Plus,
-                l: Some(Box::new(l)),
-                r: Some(Box::new(r)),
-            })
-        }),
-        map(rule!(#bit_expr ~ "-" ~ #bit_expr), |(l, _, r)| {
-            ExprNode::BinaryOperationExpr(BinaryOperationExpr {
-                op: OpCode::Minus,
-                l: Some(Box::new(l)),
-                r: Some(Box::new(r)),
-            })
         }),
     ))(i)
 }
