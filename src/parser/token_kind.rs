@@ -463,6 +463,8 @@ pub enum TokenKind {
     MOD,
     #[token("NATURAL", ignore(ascii_case))]
     NATURAL,
+    #[token("NOW", ignore(ascii_case))]
+    NOW,
     #[token("NOT", ignore(ascii_case))]
     NOT,
     #[token("NO_WRITE_TO_BINLOG", ignore(ascii_case))]
@@ -999,6 +1001,8 @@ pub enum TokenKind {
     LOCATION,
     #[token("LOCKED", ignore(ascii_case))]
     LOCKED,
+    #[token("LOG", ignore(ascii_case))]
+    LOG,
     #[token("LOGS", ignore(ascii_case))]
     LOGS,
     #[token("MASTER", ignore(ascii_case))]

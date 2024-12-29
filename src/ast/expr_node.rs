@@ -5,6 +5,7 @@ use crate::ast::functions::TimeUnitType;
 use crate::ast::op_code;
 use crate::ast::row_expr::RowExpr;
 use crate::ast::subquery_expr::SubqueryExpr;
+use crate::types::decimal::Decimal;
 use derive_visitor::Drive;
 
 #[derive(Debug, Drive, Default)]
@@ -24,6 +25,8 @@ pub enum ExprNode {
     FuncCallExpr(FuncCallExpr),
     #[drive(skip)]
     TimeUnitExpr(TimeUnitExpr),
+    #[drive(skip)]
+    VarlueExpr(ValueExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -114,4 +117,24 @@ pub struct FuncCallExpr {
 pub struct TimeUnitExpr {
     // Unit is the time or timestamp unit.
     pub unit: TimeUnitType,
+}
+
+#[derive(Debug, Default)]
+pub enum ValueExpr {
+    #[default]
+    Default,
+    NULL,
+    Bool(bool),
+    Isize(isize),
+    I64(i64),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    String(String),
+    Bytes(Vec<u8>),
+    Decimal(Decimal),
+    BinaryLiteral(Vec<u8>),
+    BitLiteral(Vec<u8>),
+    HexLiteral(Vec<u8>),
+    Other(String),
 }

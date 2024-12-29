@@ -8,7 +8,7 @@ use crate::ast::op_code::OpCode;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::common::{
-    column_name_list, fulltext_search_modifier_opt, log_and, log_or, time_unit,
+    column_name_list, fulltext_search_modifier_opt, log_and, log_or, simple_ident, time_unit,
 };
 use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
@@ -212,4 +212,148 @@ pub fn bit_expr(i: Input) -> IResult<ExprNode> {
     ))(i)
 }
 
-pub fn simple_expr(i: Input) -> IResult<ExprNode> {}
+pub fn simple_expr(i: Input) -> IResult<ExprNode> {
+    map(rule!(#simple_expr_sub_1 | #simple_expr_sub_2), |expr| expr)(i)
+}
+
+pub fn simple_expr_sub_1(i: Input) -> IResult<ExprNode> {
+    alt((
+        map(rule!(#simple_ident), |expr| ExprNode::ColumnNameExpr(expr)),
+        map(rule!(#function_call_keyword), |expr| {
+            ExprNode::FuncCallExpr(expr)
+        }),
+    ))(i)
+}
+
+pub fn simple_expr_sub_2(i: Input) -> IResult<ExprNode> {}
+
+pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
+    alt((
+        map(
+            rule!(#function_name_conflict ~ "(" ~ #expression_list_opt ~ ")"),
+            |(fn_name, _, exprs, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = exprs;
+
+                fn_expr
+            },
+        ),
+        map(
+            rule!(USER ~ "(" ~ #expression_list_opt ~ ")"),
+            |(t, _, exprs, _)| {
+                let fn_name = t.text().to_string();
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = exprs;
+
+                fn_expr
+            },
+        ),
+        map(
+            rule!(#function_name_optional_braces ~ #optional_braces?),
+            |(fn_name, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr
+            },
+        ),
+        map(rule!(CURRENT_DATE ~ #optional_braces), |(t, _)| {
+            let fn_name = t.text().to_string();
+
+            let mut fn_expr = FuncCallExpr::default();
+            fn_expr.fn_name = CIStr::new(&fn_name);
+            fn_expr
+        }),
+    ))(i)
+}
+
+pub fn function_name_conflict(i: Input) -> IResult<String> {
+    alt((
+        map(
+            rule!(
+                ASCII
+                    | CHARSET
+                    | COALESCE
+                    | COLLATION
+                    | DATE
+                    | DATABASE
+                    | DAY
+                    | HOUR
+                    | IF
+                    | INTERVAL
+            ),
+            |t| t.text().to_string(),
+        ),
+        map(
+            rule!(
+                LOG | FORMAT
+                    | LEFT
+                    | MICROSECOND
+                    | MINUTE
+                    | MONTH
+                    | NOW
+                    | POINT
+                    | QUARTER
+                    | REPEAT
+                    | REPLACE
+            ),
+            |t| t.text().to_string(),
+        ),
+        map(
+            rule!(
+                REVERSE
+                    | RIGHT
+                    | ROW_COUNT
+                    | SECOND
+                    | TIME
+                    | TIMESTAMP
+                    | TRUNCATE
+                    | USER
+                    | WEEK
+                    | YEAR
+            ),
+            |t| t.text().to_string(),
+        ),
+    ))(i)
+}
+
+fn expression_list_opt(i: Input) -> IResult<Vec<ExprNode>> {
+    separated_list0(map(rule!(","), |_| ()), expression)(i)
+}
+
+fn expression_list(i: Input) -> IResult<Vec<ExprNode>> {
+    separated_list1(map(rule!(","), |_| ()), expression)(i)
+}
+
+fn function_name_optional_braces(i: Input) -> IResult<String> {
+    map(
+        rule!(CURRENT_USER | CURRENT_DATE | CURRENT_ROLE | UTC_DATE | TIDB_CURRENT_TSO),
+        |t| t.text().to_string(),
+    )(i)
+}
+
+fn function_name_datetime_precision(i: Input) -> IResult<String> {
+    map(
+        rule!(
+            CURRENT_TIME
+                | CURRENT_TIMESTAMP
+                | LOCALTIME
+                | LOCALTIMESTAMP
+                | UTC_TIME
+                | UTC_TIMESTAMP
+        ),
+        |t| t.text().to_string(),
+    )(i)
+}
+
+fn optional_braces(i: Input) -> IResult<()> {
+    map(rule!("(" ~ ")"), |_| ())(i)
+}
+
+fn func_datetime_prec(i: Input) -> IResult<Option<isize>> {
+    alt((map(rule!(#optional_braces), |_| None), map(rule!("(" ~ LiteralInteger ~ ")"), |(_, t, _)| {
+        let value = t.text().
+    })))(i)
+}

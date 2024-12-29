@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::common::span::{pretty_print_error, Span};
+use std::error::Error;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
@@ -34,5 +35,26 @@ impl ParseError {
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(f, "{}", self.1)
+    }
+}
+
+#[derive(Debug)]
+pub enum CustomError {
+    Normal(String),
+    ParseError(ParseError),
+}
+
+impl Error for CustomError {}
+
+impl Display for CustomError {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            CustomError::Normal(v) => {
+                write!(f, "{}", v)
+            }
+            CustomError::ParseError(v) => {
+                write!(f, "{}", v.to_string())
+            }
+        }
     }
 }
