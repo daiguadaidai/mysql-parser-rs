@@ -3,9 +3,8 @@ use crate::ast::column_name::ColumnName;
 use crate::ast::common::FulltextSearchModifier;
 use crate::ast::functions::TimeUnitType;
 use crate::ast::op_code;
-use crate::ast::row_expr::RowExpr;
 use crate::ast::subquery_expr::SubqueryExpr;
-use crate::types::decimal::Decimal;
+use bigdecimal::BigDecimal;
 use derive_visitor::Drive;
 
 #[derive(Debug, Drive, Default)]
@@ -26,7 +25,7 @@ pub enum ExprNode {
     #[drive(skip)]
     TimeUnitExpr(TimeUnitExpr),
     #[drive(skip)]
-    VarlueExpr(ValueExpr),
+    ValueExpr(ValueExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -120,7 +119,7 @@ pub struct TimeUnitExpr {
 }
 
 #[derive(Debug, Default)]
-pub enum ValueExpr {
+pub enum ValueExprData {
     #[default]
     Default,
     NULL,
@@ -132,9 +131,53 @@ pub enum ValueExpr {
     F64(f64),
     String(String),
     Bytes(Vec<u8>),
-    Decimal(Decimal),
+    Decimal(BigDecimal),
     BinaryLiteral(Vec<u8>),
     BitLiteral(Vec<u8>),
     HexLiteral(Vec<u8>),
     Other(String),
+}
+
+#[derive(Debug, Default)]
+pub enum ValueExprKind {
+    #[default]
+    Default,
+    None,
+    Bool,
+    Isize,
+    I64,
+    U64,
+    F32,
+    F64,
+    String,
+    Bytes,
+    Decimal,
+    BinaryLiteral,
+    BitLiteral,
+    HexLiteral,
+    Other,
+}
+
+#[derive(Debug, Default)]
+pub struct ValueExpr {
+    pub s: String,
+    pub kind: ValueExprKind,
+    pub charset: String,
+    pub collation: String,
+}
+
+impl ValueExpr {
+    pub fn new(s: &str, kind: ValueExprKind, charset: &str, collation: &str) -> Self {
+        ValueExpr {
+            s: s.to_string(),
+            kind,
+            charset: charset.to_string(),
+            collation: collation.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Drive)]
+pub struct RowExpr {
+    pub values: Vec<ExprNode>,
 }

@@ -1,8 +1,7 @@
-use crate::ast::expr_node::ExprNode;
+use crate::ast::expr_node::{ExprNode, RowExpr};
 use crate::ast::group_by_clause::GroupByClause;
 use crate::ast::limit::Limit;
 use crate::ast::order_by_clause::OrderByClause;
-use crate::ast::row_expr::RowExpr;
 use crate::ast::select_field::SelectField;
 use crate::ast::select_into_option::SelectIntoOption;
 use crate::ast::select_lock_info::SelectLockInfo;

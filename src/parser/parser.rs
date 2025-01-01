@@ -6,6 +6,7 @@ use crate::parser::input::{Dialect, Input, ParseMode};
 use crate::parser::statements::statement::statement;
 use crate::parser::token::{Token, Tokenizer};
 use crate::parser::token_kind::TokenKind;
+use std::string::ToString;
 
 pub fn tokenize_sql(sql: &str) -> Result<Vec<Token>> {
     Tokenizer::new(sql).collect::<Result<Vec<_>>>()
@@ -14,7 +15,15 @@ pub fn tokenize_sql(sql: &str) -> Result<Vec<Token>> {
 /// Parse a SQL string into `Statement`s.
 #[fastrace::trace]
 pub fn parse_sql(tokens: &[Token], dialect: Dialect) -> Result<Statement> {
-    run_parser(tokens, dialect, ParseMode::Default, false, statement)
+    run_parser(
+        tokens,
+        dialect,
+        ParseMode::Default,
+        false,
+        "".to_string(),
+        "".to_string(),
+        statement,
+    )
 }
 
 pub fn run_parser<O>(
@@ -22,6 +31,8 @@ pub fn run_parser<O>(
     dialect: Dialect,
     mode: ParseMode,
     allow_partial: bool,
+    charset: String,
+    collation: String,
     mut parser: impl FnMut(Input) -> IResult<O>,
 ) -> Result<O> {
     let backtrace = Backtrace::new();
@@ -30,6 +41,8 @@ pub fn run_parser<O>(
         dialect,
         mode,
         backtrace: &backtrace,
+        charset: &charset,
+        collation: &collation,
     };
     match parser(input) {
         Ok((rest, res)) => {

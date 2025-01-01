@@ -30,6 +30,8 @@ pub struct Input<'a> {
     pub dialect: Dialect,
     pub mode: ParseMode,
     pub backtrace: &'a Backtrace,
+    pub charset: &'a str,
+    pub collation: &'a str,
 }
 
 impl<'a> std::ops::Deref for Input<'a> {

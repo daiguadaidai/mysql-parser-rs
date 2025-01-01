@@ -1,4 +1,5 @@
 mod ast;
+mod charset;
 mod common;
 mod mysql;
 mod parser;

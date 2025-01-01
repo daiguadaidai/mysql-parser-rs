@@ -2,8 +2,9 @@ use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
     BinaryOperationExpr, ExprNode, FuncCallExpr, MatchAgainst, TimeUnitExpr, UnaryOperationExpr,
-    VariableExpr,
+    ValueExpr, ValueExprKind, VariableExpr,
 };
+use crate::ast::functions;
 use crate::ast::op_code::OpCode;
 use crate::parser::common::*;
 use crate::parser::input::Input;
@@ -266,6 +267,58 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
             fn_expr.fn_name = CIStr::new(&fn_name);
             fn_expr
         }),
+        map(
+            rule!(#function_name_datetime_precision ~ #func_datetime_prec),
+            |(fn_name, value_expr)| {
+                let mut args = Vec::<ExprNode>::with_capacity(1);
+                if let Some(v) = value_expr {
+                    args.push(ExprNode::ValueExpr(v));
+                }
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = args;
+                fn_expr
+            },
+        ),
+        map(
+            rule!(#function_name_datetime_precision ~ #func_datetime_prec),
+            |(fn_name, value_expr)| {
+                let mut args = Vec::with_capacity(1);
+                if let Some(v) = value_expr {
+                    args.push(ExprNode::ValueExpr(v));
+                }
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = args;
+                fn_expr
+            },
+        ),
+        map(
+            rule!(CHAR ~ "(" ~ #expression_list ~ ")"),
+            |(_, _, mut exprs, _)| {
+                let value_expr = ValueExpr::new("", ValueExprKind::None, i.charset, i.collation);
+                exprs.push(ExprNode::ValueExpr(value_expr));
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::CHAR_FUNC);
+                fn_expr.args = exprs;
+                fn_expr
+            },
+        ),
+        map(
+            rule!(CHAR ~ "(" ~ #expression_list ~ USING ~ ")"),
+            |(_, _, mut exprs, _, _)| {
+                let value_expr = ValueExpr::new("", ValueExprKind::None, i.charset, i.collation);
+                exprs.push(ExprNode::ValueExpr(value_expr));
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::CHAR_FUNC);
+                fn_expr.args = exprs;
+                fn_expr
+            },
+        ),
     ))(i)
 }
 
@@ -352,8 +405,12 @@ fn optional_braces(i: Input) -> IResult<()> {
     map(rule!("(" ~ ")"), |_| ())(i)
 }
 
-fn func_datetime_prec(i: Input) -> IResult<Option<isize>> {
-    alt((map(rule!(#optional_braces), |_| None), map(rule!("(" ~ LiteralInteger ~ ")"), |(_, t, _)| {
-        let value = t.text().
-    })))(i)
+fn func_datetime_prec(i: Input) -> IResult<Option<ValueExpr>> {
+    alt((
+        map(rule!(#optional_braces?), |_| None),
+        map(rule!("(" ~ LiteralInteger ~ ")"), |(_, t, _)| {
+            let value_expr = ValueExpr::new(t.text(), ValueExprKind::Isize, i.charset, i.collation);
+            Some(value_expr)
+        }),
+    ))(i)
 }

@@ -1505,6 +1505,246 @@ pub enum TokenKind {
     TOPN,
     #[token("WIDTH", ignore(ascii_case))]
     WIDTH,
+    #[token("ADDDATE", ignore(ascii_case))]
+    ADDDATE,
+    #[token("APPROX_COUNT_DISTINCT", ignore(ascii_case))]
+    APPROX_COUNT_DISTINCT,
+    #[token("APPROX_PERCENTILE", ignore(ascii_case))]
+    APPROX_PERCENTILE,
+    #[token("BIT_AND", ignore(ascii_case))]
+    BIT_AND,
+    #[token("BIT_OR", ignore(ascii_case))]
+    BIT_OR,
+    #[token("BIT_XOR", ignore(ascii_case))]
+    BIT_XOR,
+    #[token("BRIEF", ignore(ascii_case))]
+    BRIEF,
+    #[token("CAST", ignore(ascii_case))]
+    CAST,
+    #[token("COPY", ignore(ascii_case))]
+    COPY,
+    #[token("CURTIME", ignore(ascii_case))]
+    CURTIME,
+    #[token("CURDATE", ignore(ascii_case))]
+    CURDATE,
+    #[token("DATE_ADD", ignore(ascii_case))]
+    DATE_ADD,
+    #[token("DATE_SUB", ignore(ascii_case))]
+    DATE_SUB,
+    #[token("DEFINED", ignore(ascii_case))]
+    DEFINED,
+    #[token("DOT", ignore(ascii_case))]
+    DOT,
+    #[token("DUMP", ignore(ascii_case))]
+    DUMP,
+    #[token("DURATION", ignore(ascii_case))]
+    DURATION,
+    #[token("EXTRACT", ignore(ascii_case))]
+    EXTRACT,
+    #[token("END_TIME", ignore(ascii_case))]
+    END_TIME,
+    #[token("GET_FORMAT", ignore(ascii_case))]
+    GET_FORMAT,
+    #[token("GROUP_CONCAT", ignore(ascii_case))]
+    GROUP_CONCAT,
+    #[token("HNSW", ignore(ascii_case))]
+    HNSW,
+    #[token("INPLACE", ignore(ascii_case))]
+    INPLACE,
+    #[token("INSTANT", ignore(ascii_case))]
+    INSTANT,
+    #[token("INTERNAL", ignore(ascii_case))]
+    INTERNAL,
+    #[token("MIN", ignore(ascii_case))]
+    MIN,
+    #[token("MAX", ignore(ascii_case))]
+    MAX,
+    #[token("RECENT", ignore(ascii_case))]
+    RECENT,
+    #[token("REPLAYER", ignore(ascii_case))]
+    REPLAYER,
+    #[token("RUNNING", ignore(ascii_case))]
+    RUNNING,
+    #[token("PLACEMENT", ignore(ascii_case))]
+    PLACEMENT,
+    #[token("PLAN", ignore(ascii_case))]
+    PLAN,
+    #[token("PLAN_CACHE", ignore(ascii_case))]
+    PLAN_CACHE,
+    #[token("POSITION", ignore(ascii_case))]
+    POSITION,
+    #[token("PREDICATE", ignore(ascii_case))]
+    PREDICATE,
+    #[token("S3", ignore(ascii_case))]
+    S3,
+    #[token("STRICT", ignore(ascii_case))]
+    STRICT,
+    #[token("SUBDATE", ignore(ascii_case))]
+    SUBDATE,
+    #[token("SUBSTRING", ignore(ascii_case))]
+    SUBSTRING,
+    #[token("SUM", ignore(ascii_case))]
+    SUM,
+    #[token("START_TIME", ignore(ascii_case))]
+    START_TIME,
+    #[token("STD", ignore(ascii_case))]
+    STD,
+    #[token("STDDEV", ignore(ascii_case))]
+    STDDEV,
+    #[token("STDDEV_POP", ignore(ascii_case))]
+    STDDEV_POP,
+    #[token("STDDEV_SAMP", ignore(ascii_case))]
+    STDDEV_SAMP,
+    #[token("STOP", ignore(ascii_case))]
+    STOP,
+    #[token("VARIANCE", ignore(ascii_case))]
+    VARIANCE,
+    #[token("VAR_POP", ignore(ascii_case))]
+    VAR_POP,
+    #[token("VAR_SAMP", ignore(ascii_case))]
+    VAR_SAMP,
+    #[token("TARGET", ignore(ascii_case))]
+    TARGET,
+    #[token("TIMESTAMPADD", ignore(ascii_case))]
+    TIMESTAMPADD,
+    #[token("TIMESTAMPDIFF", ignore(ascii_case))]
+    TIMESTAMPDIFF,
+    #[token("TOKUDB_DEFAULT", ignore(ascii_case))]
+    TOKUDB_DEFAULT,
+    #[token("TOKUDB_FAST", ignore(ascii_case))]
+    TOKUDB_FAST,
+    #[token("TOKUDB_LZMA", ignore(ascii_case))]
+    TOKUDB_LZMA,
+    #[token("TOKUDB_QUICKLZ", ignore(ascii_case))]
+    TOKUDB_QUICKLZ,
+    #[token("TOKUDB_SNAPPY", ignore(ascii_case))]
+    TOKUDB_SNAPPY,
+    #[token("TOKUDB_SMALL", ignore(ascii_case))]
+    TOKUDB_SMALL,
+    #[token("TOKUDB_UNCOMPRESSED", ignore(ascii_case))]
+    TOKUDB_UNCOMPRESSED,
+    #[token("TOKUDB_ZLIB", ignore(ascii_case))]
+    TOKUDB_ZLIB,
+    #[token("TOKUDB_ZSTD", ignore(ascii_case))]
+    TOKUDB_ZSTD,
+    #[token("TOP", ignore(ascii_case))]
+    TOP,
+    #[token("TRIM", ignore(ascii_case))]
+    TRIM,
+    #[token("NEXT_ROW_ID", ignore(ascii_case))]
+    NEXT_ROW_ID,
+    #[token("EXPR_PUSHDOWN_BLACKLIST", ignore(ascii_case))]
+    EXPR_PUSHDOWN_BLACKLIST,
+    #[token("OPT_RULE_BLACKLIST", ignore(ascii_case))]
+    OPT_RULE_BLACKLIST,
+    #[token("BOUND", ignore(ascii_case))]
+    BOUND,
+    #[token("EXACT", ignore(ascii_case))]
+    EXACT,
+    #[token("STALENESS", ignore(ascii_case))]
+    STALENESS,
+    #[token("STRONG", ignore(ascii_case))]
+    STRONG,
+    #[token("FLASHBACK", ignore(ascii_case))]
+    FLASHBACK,
+    #[token("JSON_OBJECTAGG", ignore(ascii_case))]
+    JSON_OBJECTAGG,
+    #[token("JSON_ARRAYAGG", ignore(ascii_case))]
+    JSON_ARRAYAGG,
+    #[token("TLS", ignore(ascii_case))]
+    TLS,
+    #[token("FOLLOWER", ignore(ascii_case))]
+    FOLLOWER,
+    #[token("FOLLOWERS", ignore(ascii_case))]
+    FOLLOWERS,
+    #[token("LEADER", ignore(ascii_case))]
+    LEADER,
+    #[token("LEARNER", ignore(ascii_case))]
+    LEARNER,
+    #[token("LEARNERS", ignore(ascii_case))]
+    LEARNERS,
+    #[token("VERBOSE", ignore(ascii_case))]
+    VERBOSE,
+    #[token("TRUE_CARD_COST", ignore(ascii_case))]
+    TRUE_CARD_COST,
+    #[token("VOTER", ignore(ascii_case))]
+    VOTER,
+    #[token("VOTERS", ignore(ascii_case))]
+    VOTERS,
+    #[token("CONSTRAINTS", ignore(ascii_case))]
+    CONSTRAINTS,
+    #[token("PRIMARY_REGION", ignore(ascii_case))]
+    PRIMARY_REGION,
+    #[token("SCHEDULE", ignore(ascii_case))]
+    SCHEDULE,
+    #[token("SURVIVAL_PREFERENCES", ignore(ascii_case))]
+    SURVIVAL_PREFERENCES,
+    #[token("LEADER_CONSTRAINTS", ignore(ascii_case))]
+    LEADER_CONSTRAINTS,
+    #[token("FOLLOWER_CONSTRAINTS", ignore(ascii_case))]
+    FOLLOWER_CONSTRAINTS,
+    #[token("LEARNER_CONSTRAINTS", ignore(ascii_case))]
+    LEARNER_CONSTRAINTS,
+    #[token("VOTER_CONSTRAINTS", ignore(ascii_case))]
+    VOTER_CONSTRAINTS,
+    #[token("TIDB_JSON", ignore(ascii_case))]
+    TIDB_JSON,
+    #[token("IO_READ_BANDWIDTH", ignore(ascii_case))]
+    IO_READ_BANDWIDTH,
+    #[token("IO_WRITE_BANDWIDTH", ignore(ascii_case))]
+    IO_WRITE_BANDWIDTH,
+    #[token("RU_PER_SEC", ignore(ascii_case))]
+    RU_PER_SEC,
+    #[token("PRIORITY", ignore(ascii_case))]
+    PRIORITY,
+    #[token("HIGH", ignore(ascii_case))]
+    HIGH,
+    #[token("MEDIUM", ignore(ascii_case))]
+    MEDIUM,
+    #[token("LOW", ignore(ascii_case))]
+    LOW,
+    #[token("BURSTABLE", ignore(ascii_case))]
+    BURSTABLE,
+    #[token("BR", ignore(ascii_case))]
+    BR,
+    #[token("GC_TTL", ignore(ascii_case))]
+    GC_TTL,
+    #[token("METADATA", ignore(ascii_case))]
+    METADATA,
+    #[token("START_TS", ignore(ascii_case))]
+    START_TS,
+    #[token("UNTIL_TS", ignore(ascii_case))]
+    UNTIL_TS,
+    #[token("RESTORED_TS", ignore(ascii_case))]
+    RESTORED_TS,
+    #[token("FULL_BACKUP_STORAGE", ignore(ascii_case))]
+    FULL_BACKUP_STORAGE,
+    #[token("EXEC_ELAPSED", ignore(ascii_case))]
+    EXEC_ELAPSED,
+    #[token("PROCESSED_KEYS", ignore(ascii_case))]
+    PROCESSED_KEYS,
+    #[token("RU", ignore(ascii_case))]
+    RU,
+    #[token("DRYRUN", ignore(ascii_case))]
+    DRYRUN,
+    #[token("COOLDOWN", ignore(ascii_case))]
+    COOLDOWN,
+    #[token("SWITCH_GROUP", ignore(ascii_case))]
+    SWITCH_GROUP,
+    #[token("WATCH", ignore(ascii_case))]
+    WATCH,
+    #[token("SIMILAR", ignore(ascii_case))]
+    SIMILAR,
+    #[token("QUERY_LIMIT", ignore(ascii_case))]
+    QUERY_LIMIT,
+    #[token("BACKGROUND", ignore(ascii_case))]
+    BACKGROUND,
+    #[token("TASK_TYPES", ignore(ascii_case))]
+    TASK_TYPES,
+    #[token("UNLIMITED", ignore(ascii_case))]
+    UNLIMITED,
+    #[token("UTILIZATION_LIMIT", ignore(ascii_case))]
+    UTILIZATION_LIMIT,
 }
 
 impl TokenKind {
