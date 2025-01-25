@@ -297,6 +297,7 @@ dependencies = [
  "fast-float",
  "fastrace",
  "itertools 0.13.0",
+ "lazy_static",
  "logos",
  "nom",
  "nom-rule",
