@@ -1,7 +1,7 @@
 use crate::ast::ci_str::CIStr;
 use crate::ast::column_name::ColumnName;
 use crate::ast::common::FulltextSearchModifier;
-use crate::ast::functions::TimeUnitType;
+use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionType};
 use crate::ast::op_code;
 use crate::ast::subquery_expr::SubqueryExpr;
 use bigdecimal::BigDecimal;
@@ -26,6 +26,10 @@ pub enum ExprNode {
     TimeUnitExpr(TimeUnitExpr),
     #[drive(skip)]
     ValueExpr(ValueExpr),
+    #[drive(skip)]
+    TrimDirectionExpr(TrimDirectionExpr),
+    #[drive(skip)]
+    GetFormatSelectorExpr(GetFormatSelectorExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -143,15 +147,15 @@ pub enum ValueExprKind {
     #[default]
     Default,
     None,
-    Bool,
-    Isize,
-    I64,
-    U64,
-    F32,
-    F64,
+    Bool(bool),
+    Isize(isize),
+    I64(i64),
+    U64(u64),
+    F32(f32),
+    F64(f64),
     String,
-    Bytes,
-    Decimal,
+    Bytes(Vec<u8>),
+    Decimal(BigDecimal),
     BinaryLiteral,
     BitLiteral,
     HexLiteral,
@@ -180,4 +184,14 @@ impl ValueExpr {
 #[derive(Debug, Drive)]
 pub struct RowExpr {
     pub values: Vec<ExprNode>,
+}
+
+#[derive(Debug)]
+pub struct TrimDirectionExpr {
+    pub direction: TrimDirectionType,
+}
+
+#[derive(Debug)]
+pub struct GetFormatSelectorExpr {
+    pub selector: GetFormatSelectorType,
 }

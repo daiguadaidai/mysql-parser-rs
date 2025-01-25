@@ -4,8 +4,8 @@ use crate::ast::common::{
     FULLTEXT_SEARCH_MODIFIER_BOOLEAN_MODE, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE,
     FULLTEXT_SEARCH_MODIFIER_WITH_QUERY_EXPANSION,
 };
-use crate::ast::expr_node::ColumnNameExpr;
-use crate::ast::functions::TimeUnitType;
+use crate::ast::expr_node::{ColumnNameExpr, ExprNode, ValueExpr, ValueExprKind};
+use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionType};
 use crate::mysql::consts::PriorityEnum;
 use crate::parser::common::*;
 use crate::parser::input::Input;
@@ -128,6 +128,7 @@ pub fn time_unit_1(i: Input) -> IResult<TimeUnitType> {
         map(rule!(DAY_SECOND), |_| TimeUnitType::TimeUnitDaySecond),
         map(rule!(DAY_MINUTE), |_| TimeUnitType::TimeUnitDayMinute),
         map(rule!(DAY_HOUR), |_| TimeUnitType::TimeUnitDayHour),
+        map(rule!(YEAR_MONTH), |_| TimeUnitType::TimeUnitYearMonth),
     ))(i)
 }
 
@@ -151,8 +152,14 @@ pub fn fulltext_search_modifier_opt(i: Input) -> IResult<isize> {
         }),
     ))(i)
 }
-
 pub fn un_reserved_keyword(i: Input) -> IResult<String> {
+    map(
+        rule!(#un_reserved_keyword_1 | #un_reserved_keyword_2),
+        |s| s,
+    )(i)
+}
+
+pub fn un_reserved_keyword_1(i: Input) -> IResult<String> {
     alt((
         map(
             rule!(
@@ -384,6 +391,11 @@ pub fn un_reserved_keyword(i: Input) -> IResult<String> {
             ),
             |t| t.text().to_string(),
         ),
+    ))(i)
+}
+
+pub fn un_reserved_keyword_2(i: Input) -> IResult<String> {
+    alt((
         map(
             rule!(
                 NULLS
@@ -895,6 +907,7 @@ pub fn string_name(i: Input) -> IResult<String> {
 pub fn charset_name(i: Input) -> IResult<String> {
     alt((
         map(rule!(#string_name), |(s)| {
+            /*
             // Validate input charset name to keep the same behavior as parser of MySQL.
             cs, err := charset.GetCharsetInfo($1)
             if err != nil {
@@ -904,7 +917,139 @@ pub fn charset_name(i: Input) -> IResult<String> {
             // Use charset name returned from charset.GetCharsetInfo(),
             // to keep lower case of input for generated column restore.
             $$ = cs.Name
+
+             */
+            s
         }),
         map(rule!(BINARY), |(t)| t.text().to_string()),
     ))(i)
+}
+
+pub fn get_format_selector(i: Input) -> IResult<GetFormatSelectorType> {
+    alt((
+        map(rule!(DATE), |(_)| GetFormatSelectorType::Date),
+        map(rule!(DATETIME), |(_)| GetFormatSelectorType::Datetime),
+        map(rule!(TIME), |(_)| GetFormatSelectorType::Time),
+        map(rule!(TIMESTAMP), |(_)| GetFormatSelectorType::Datetime),
+    ))(i)
+}
+
+pub fn function_name_optional_braces(i: Input) -> IResult<String> {
+    map(
+        rule!(CURRENT_USER | CURRENT_DATE | CURRENT_ROLE | UTC_DATE | TIDB_CURRENT_TSO),
+        |t| t.text().to_string(),
+    )(i)
+}
+
+pub fn function_name_datetime_precision(i: Input) -> IResult<String> {
+    map(
+        rule!(
+            CURRENT_TIME
+                | CURRENT_TIMESTAMP
+                | LOCALTIME
+                | LOCALTIMESTAMP
+                | UTC_TIME
+                | UTC_TIMESTAMP
+        ),
+        |t| t.text().to_string(),
+    )(i)
+}
+
+pub fn optional_braces(i: Input) -> IResult<()> {
+    map(rule!("(" ~ ")"), |_| ())(i)
+}
+
+pub fn func_datetime_prec(i: Input) -> IResult<Option<ValueExpr>> {
+    alt((
+        map(rule!(#optional_braces?), |_| None),
+        map(rule!("(" ~ LiteralInteger ~ ")"), |(_, t, _)| {
+            let value_expr = ValueExpr::new(t.text(), ValueExprKind::Isize, i.charset, i.collation);
+            Some(value_expr)
+        }),
+    ))(i)
+}
+
+pub fn func_datetime_prec_list_opt(i: Input) -> IResult<Vec<ExprNode>> {
+    map(rule!(LiteralInteger?), |t| match t {
+        None => vec![],
+        Some(token) => {
+            let value_expr =
+                ValueExpr::new(token.text(), ValueExprKind::Isize, i.charset, i.collation);
+            vec![ExprNode::ValueExpr(value_expr)]
+        }
+    })(i)
+}
+
+pub fn function_name_date_arith(i: Input) -> IResult<String> {
+    map(rule!(DATE_ADD | DATE_SUB), |(t)| t.text().to_string())(i)
+}
+
+pub fn function_name_date_arith_multi_forms(i: Input) -> IResult<String> {
+    map(rule!(ADDDATE | SUBDATE), |(t)| t.text().to_string())(i)
+}
+
+pub fn function_name_conflict(i: Input) -> IResult<String> {
+    alt((
+        map(
+            rule!(
+                ASCII
+                    | CHARSET
+                    | COALESCE
+                    | COLLATION
+                    | DATE
+                    | DATABASE
+                    | DAY
+                    | HOUR
+                    | IF
+                    | INTERVAL
+            ),
+            |t| t.text().to_string(),
+        ),
+        map(
+            rule!(
+                LOG | FORMAT
+                    | LEFT
+                    | MICROSECOND
+                    | MINUTE
+                    | MONTH
+                    | NOW
+                    | POINT
+                    | QUARTER
+                    | REPEAT
+                    | REPLACE
+            ),
+            |t| t.text().to_string(),
+        ),
+        map(
+            rule!(
+                REVERSE
+                    | RIGHT
+                    | ROW_COUNT
+                    | SECOND
+                    | TIME
+                    | TIMESTAMP
+                    | TRUNCATE
+                    | USER
+                    | WEEK
+                    | YEAR
+            ),
+            |t| t.text().to_string(),
+        ),
+    ))(i)
+}
+
+pub fn trim_direction(i: Input) -> IResult<TrimDirectionType> {
+    alt((
+        map(rule!(BOTH), |_| TrimDirectionType::Both),
+        map(rule!(LEADING), |_| TrimDirectionType::Leading),
+        map(rule!(TRAILING), |_| TrimDirectionType::Trailing),
+    ))(i)
+}
+
+pub fn field_len(i: Input) -> IResult<isize> {
+    map(rule!("(" ~ #length_num ~ ")"), |(_, val, _)| val as isize)(i)
+}
+
+pub fn length_num(i: Input) -> IResult<u64> {
+    map(rule!(LiteralInteger), |(val)| get_u64_form_num(val.text()))(i)
 }

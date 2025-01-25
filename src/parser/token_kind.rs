@@ -1327,6 +1327,8 @@ pub enum TokenKind {
     SWAPS,
     #[token("SWITCHES", ignore(ascii_case))]
     SWITCHES,
+    #[token("SYSDATE", ignore(ascii_case))]
+    SYSDATE,
     #[token("SYSTEM", ignore(ascii_case))]
     SYSTEM,
     #[token("SYSTEM_TIME", ignore(ascii_case))]
@@ -2064,10 +2066,10 @@ impl TokenKind {
             | TokenKind::XOR
             | TokenKind::YEAR_MONTH
             | TokenKind::ZEROFILL
-                if !after_as =>
-            {
-                true
-            }
+            if !after_as =>
+                {
+                    true
+                }
             _ => false,
         }
     }

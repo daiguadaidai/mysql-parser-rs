@@ -1,15 +1,20 @@
 use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
-    BinaryOperationExpr, ExprNode, FuncCallExpr, MatchAgainst, TimeUnitExpr, UnaryOperationExpr,
-    ValueExpr, ValueExprKind, VariableExpr,
+    BinaryOperationExpr, ExprNode, FuncCallExpr, GetFormatSelectorExpr, MatchAgainst, TimeUnitExpr,
+    TrimDirectionExpr, UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr,
 };
 use crate::ast::functions;
+use crate::ast::functions::TimeUnitType;
 use crate::ast::op_code::OpCode;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::common::{
-    column_name_list, fulltext_search_modifier_opt, log_and, log_or, simple_ident, time_unit,
+    column_name_list, field_len, fulltext_search_modifier_opt, func_datetime_prec,
+    func_datetime_prec_list_opt, function_name_conflict, function_name_date_arith,
+    function_name_date_arith_multi_forms, function_name_datetime_precision,
+    function_name_optional_braces, get_format_selector, log_and, log_or, optional_braces,
+    simple_ident, string_lit, time_unit, timestamp_unit, timestamp_unit_sql_tsi, trim_direction,
 };
 use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
@@ -220,15 +225,13 @@ pub fn simple_expr(i: Input) -> IResult<ExprNode> {
 pub fn simple_expr_sub_1(i: Input) -> IResult<ExprNode> {
     alt((
         map(rule!(#simple_ident), |expr| ExprNode::ColumnNameExpr(expr)),
-        map(rule!(#function_call_keyword), |expr| {
-            ExprNode::FuncCallExpr(expr)
-        }),
+        map(rule!(#function_call_keyword), |expr| expr),
     ))(i)
 }
 
 pub fn simple_expr_sub_2(i: Input) -> IResult<ExprNode> {}
 
-pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
+pub fn function_call_keyword(i: Input) -> IResult<ExprNode> {
     alt((
         map(
             rule!(#function_name_conflict ~ "(" ~ #expression_list_opt ~ ")"),
@@ -237,19 +240,17 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
                 fn_expr.fn_name = CIStr::new(&fn_name);
                 fn_expr.args = exprs;
 
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
         map(
             rule!(USER ~ "(" ~ #expression_list_opt ~ ")"),
             |(t, _, exprs, _)| {
-                let fn_name = t.text().to_string();
-
                 let mut fn_expr = FuncCallExpr::default();
-                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.fn_name = CIStr::new(t.text());
                 fn_expr.args = exprs;
 
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
         map(
@@ -257,15 +258,13 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
             |(fn_name, _)| {
                 let mut fn_expr = FuncCallExpr::default();
                 fn_expr.fn_name = CIStr::new(&fn_name);
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
-        map(rule!(CURRENT_DATE ~ #optional_braces), |(t, _)| {
-            let fn_name = t.text().to_string();
-
+        map(rule!(CURDATE ~ #optional_braces), |(t, _)| {
             let mut fn_expr = FuncCallExpr::default();
-            fn_expr.fn_name = CIStr::new(&fn_name);
-            fn_expr
+            fn_expr.fn_name = CIStr::new(t.text());
+            ExprNode::FuncCallExpr(fn_expr)
         }),
         map(
             rule!(#function_name_datetime_precision ~ #func_datetime_prec),
@@ -278,7 +277,7 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
                 let mut fn_expr = FuncCallExpr::default();
                 fn_expr.fn_name = CIStr::new(&fn_name);
                 fn_expr.args = args;
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
         map(
@@ -292,7 +291,7 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
                 let mut fn_expr = FuncCallExpr::default();
                 fn_expr.fn_name = CIStr::new(&fn_name);
                 fn_expr.args = args;
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
         map(
@@ -304,7 +303,7 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
                 let mut fn_expr = FuncCallExpr::default();
                 fn_expr.fn_name = CIStr::new(functions::CHAR_FUNC);
                 fn_expr.args = exprs;
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
         map(
@@ -316,59 +315,313 @@ pub fn function_call_keyword(i: Input) -> IResult<FuncCallExpr> {
                 let mut fn_expr = FuncCallExpr::default();
                 fn_expr.fn_name = CIStr::new(functions::CHAR_FUNC);
                 fn_expr.args = exprs;
-                fn_expr
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(rule!(DATE ~ #string_lit), |(_, s)| {
+            let value_expr = ValueExpr::new(&s, ValueExprKind::String, "", "");
+            let exprs = vec![ExprNode::ValueExpr(value_expr)];
+
+            let mut fn_expr = FuncCallExpr::default();
+            fn_expr.fn_name = CIStr::new(functions::DATE_LITERAL);
+            fn_expr.args = exprs;
+            ExprNode::FuncCallExpr(fn_expr)
+        }),
+        map(rule!(TIME ~ #string_lit), |(_, s)| {
+            let value_expr = ValueExpr::new(&s, ValueExprKind::String, "", "");
+            let exprs = vec![ExprNode::ValueExpr(value_expr)];
+
+            let mut fn_expr = FuncCallExpr::default();
+            fn_expr.fn_name = CIStr::new(functions::TIME_LITERAL);
+            fn_expr.args = exprs;
+            ExprNode::FuncCallExpr(fn_expr)
+        }),
+        map(rule!(TIMESTAMP ~ #string_lit), |(_, val)| {
+            let value_expr = ValueExpr::new(&val, ValueExprKind::String, "", "");
+            let exprs = vec![ExprNode::ValueExpr(value_expr)];
+
+            let mut fn_expr = FuncCallExpr::default();
+            fn_expr.fn_name = CIStr::new(functions::TIMESTAMP_LITERAL);
+            fn_expr.args = exprs;
+            ExprNode::FuncCallExpr(fn_expr)
+        }),
+        map(rule!(INSERT ~ #expression_list_opt), |(_, exprs)| {
+            let mut fn_expr = FuncCallExpr::default();
+            fn_expr.fn_name = CIStr::new(functions::INSERT_FUNC);
+            fn_expr.args = exprs;
+            ExprNode::FuncCallExpr(fn_expr)
+        }),
+        map(
+            rule!(MOD ~ "(" ~ #bit_expr ~ "," ~ #bit_expr ~ ")"),
+            |(_, _, l, _, r, _)| {
+                ExprNode::BinaryOperationExpr(BinaryOperationExpr {
+                    op: OpCode::Mod,
+                    l: Some(Box::new(l)),
+                    r: Some(Box::new(r)),
+                })
+            },
+        ),
+        map(
+            rule!(PASSWORD ~ "(" ~ #expression_list_opt ~ ")"),
+            |(_, _, exprs, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::PASSWORD_FUNC);
+                fn_expr.args = exprs;
+                ExprNode::FuncCallExpr(fn_expr)
             },
         ),
     ))(i)
 }
 
-pub fn function_name_conflict(i: Input) -> IResult<String> {
+pub fn function_call_non_keyword(i: Input) -> IResult<ExprNode> {
+    map(
+        rule!(#function_call_non_keyword_1 | #function_call_non_keyword_2),
+        |(e)| e,
+    )(i)
+}
+
+pub fn function_call_non_keyword_1(i: Input) -> IResult<ExprNode> {
     alt((
         map(
-            rule!(
-                ASCII
-                    | CHARSET
-                    | COALESCE
-                    | COLLATION
-                    | DATE
-                    | DATABASE
-                    | DAY
-                    | HOUR
-                    | IF
-                    | INTERVAL
-            ),
-            |t| t.text().to_string(),
+            rule!(CURTIME ~ "(" ~ #func_datetime_prec_list_opt ~ ")"),
+            |(fn_name, _, exprs, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = exprs;
+                ExprNode::FuncCallExpr(fn_expr)
+            },
         ),
         map(
-            rule!(
-                LOG | FORMAT
-                    | LEFT
-                    | MICROSECOND
-                    | MINUTE
-                    | MONTH
-                    | NOW
-                    | POINT
-                    | QUARTER
-                    | REPEAT
-                    | REPLACE
-            ),
-            |t| t.text().to_string(),
+            rule!(SYSDATE ~ "(" ~ #func_datetime_prec_list_opt ~ ")"),
+            |(fn_name, _, exprs, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = exprs;
+                ExprNode::FuncCallExpr(fn_expr)
+            },
         ),
         map(
-            rule!(
-                REVERSE
-                    | RIGHT
-                    | ROW_COUNT
-                    | SECOND
-                    | TIME
-                    | TIMESTAMP
-                    | TRUNCATE
-                    | USER
-                    | WEEK
-                    | YEAR
-            ),
-            |t| t.text().to_string(),
+            rule!(#function_name_date_arith_multi_forms ~ "(" ~ #expression ~ "," ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = vec![
+                    expr1,
+                    expr2,
+                    ExprNode::TimeUnitExpr(TimeUnitExpr {
+                        unit: TimeUnitType::TimeUnitDay,
+                    }),
+                ];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
         ),
+        map(
+            rule!(#function_name_date_arith_multi_forms ~ "(" ~ #expression ~ "," ~ INTERVAL ~ #expression ~ #time_unit ~ ")"),
+            |(fn_name, _, expr1, _, _, expr2, unit, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = vec![expr1, expr2, ExprNode::TimeUnitExpr(TimeUnitExpr { unit })];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(#function_name_date_arith ~ "(" ~ #expression ~ "," ~ INTERVAL ~ #expression ~ #time_unit ~ ")"),
+            |(fn_name, _, expr1, _, _, expr2, unit, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(&fn_name);
+                fn_expr.args = vec![expr1, expr2, ExprNode::TimeUnitExpr(TimeUnitExpr { unit })];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(EXTRACT ~ "(" ~ #time_unit ~ FROM ~ #expression ~ ")"),
+            |(fn_name, _, unit, _, expr, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![ExprNode::TimeUnitExpr(TimeUnitExpr { unit })];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(GET_FORMAT ~ "(" ~ #get_format_selector ~ "," ~ #expression ~ ")"),
+            |(fn_name, _, typ, _, expr, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![
+                    ExprNode::GetFormatSelectorExpr(GetFormatSelectorExpr { selector: typ }),
+                    expr,
+                ];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(POSITION ~ "(" ~ #bit_expr ~ IN ~ #expression ~ ")"),
+            |(fn_name, _, bit_expr, _, expr, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![bit_expr, expr];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(SUBSTRING ~ "(" ~ #expression ~ "," ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr1, expr2];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(SUBSTRING ~ "(" ~ #expression ~ FROM ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr1, expr2];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(SUBSTRING ~ "(" ~ #expression ~ "," ~ #expression ~ "," ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _, expr3, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr1, expr2, expr3];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(SUBSTRING ~ "(" ~ #expression ~ FROM ~ #expression ~ FOR ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _, expr3, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr1, expr2, expr3];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TIMESTAMPADD ~ "(" ~ (#timestamp_unit|#timestamp_unit_sql_tsi) ~ "," ~ #expression ~ "," ~ #expression ~ ")"),
+            |(fn_name, _, unit, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![ExprNode::TimeUnitExpr(TimeUnitExpr { unit }), expr1, expr2];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TIMESTAMPDIFF ~ "(" ~ (#timestamp_unit|#timestamp_unit_sql_tsi) ~ "," ~ #expression ~ "," ~ #expression ~ ")"),
+            |(fn_name, _, unit, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![ExprNode::TimeUnitExpr(TimeUnitExpr { unit }), expr1, expr2];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TRIM ~ "(" ~ #expression ~ ")"),
+            |(fn_name, _, expr, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TRIM ~ "(" ~ #expression ~ FROM ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr2, expr1];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+    ))(i)
+}
+
+pub fn function_call_non_keyword_2(i: Input) -> IResult<ExprNode> {
+    alt((
+        map(
+            rule!(TRIM ~ "(" ~ #expression ~ ")"),
+            |(fn_name, _, expr, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TRIM ~ "(" ~ #expression ~ FROM ~ #expression ~ ")"),
+            |(fn_name, _, expr1, _, expr2, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr2, expr1];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TRIM ~ "(" ~ #trim_direction ~ FROM ~ #expression ~ ")"),
+            |(fn_name, _, trim_type, _, expr, _)| {
+                let space_val = ExprNode::ValueExpr(ValueExpr::new(
+                    " ",
+                    ValueExprKind::String,
+                    i.charset,
+                    i.collation,
+                ));
+
+                let dirction = ExprNode::TrimDirectionExpr(TrimDirectionExpr {
+                    direction: trim_type,
+                });
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr, space_val, dirction];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(TRIM ~ "(" ~ #trim_direction ~ #expression ~ FROM ~ #expression ~ ")"),
+            |(fn_name, _, trim_type, expr1, _, expr2, _)| {
+                let dirction = ExprNode::TrimDirectionExpr(TrimDirectionExpr {
+                    direction: trim_type,
+                });
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr2, expr1, dirction];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(WEIGHT_STRING ~ "(" ~ #expression ~ ")"),
+            |(fn_name, _, expr, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![expr];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(
+            rule!(WEIGHT_STRING ~ "(" ~ #expression ~ AS ~ BINARY ~ #field_len ~ ")"),
+            |(fn_name, _, expr, _, _, len, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(fn_name.text());
+                fn_expr.args = vec![
+                    expr,
+                    ExprNode::ValueExpr(ValueExpr::new(
+                        "BINARY",
+                        ValueExprKind::BinaryLiteral,
+                        i.charset,
+                        i.collation,
+                    )),
+                    ExprNode::ValueExpr(ValueExpr::new(
+                        &len.to_string(),
+                        ValueExprKind::Isize(len),
+                        i.charset,
+                        i.collation,
+                    )),
+                ];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        // @TODO
     ))(i)
 }
 
@@ -378,39 +631,4 @@ fn expression_list_opt(i: Input) -> IResult<Vec<ExprNode>> {
 
 fn expression_list(i: Input) -> IResult<Vec<ExprNode>> {
     separated_list1(map(rule!(","), |_| ()), expression)(i)
-}
-
-fn function_name_optional_braces(i: Input) -> IResult<String> {
-    map(
-        rule!(CURRENT_USER | CURRENT_DATE | CURRENT_ROLE | UTC_DATE | TIDB_CURRENT_TSO),
-        |t| t.text().to_string(),
-    )(i)
-}
-
-fn function_name_datetime_precision(i: Input) -> IResult<String> {
-    map(
-        rule!(
-            CURRENT_TIME
-                | CURRENT_TIMESTAMP
-                | LOCALTIME
-                | LOCALTIMESTAMP
-                | UTC_TIME
-                | UTC_TIMESTAMP
-        ),
-        |t| t.text().to_string(),
-    )(i)
-}
-
-fn optional_braces(i: Input) -> IResult<()> {
-    map(rule!("(" ~ ")"), |_| ())(i)
-}
-
-fn func_datetime_prec(i: Input) -> IResult<Option<ValueExpr>> {
-    alt((
-        map(rule!(#optional_braces?), |_| None),
-        map(rule!("(" ~ LiteralInteger ~ ")"), |(_, t, _)| {
-            let value_expr = ValueExpr::new(t.text(), ValueExprKind::Isize, i.charset, i.collation);
-            Some(value_expr)
-        }),
-    ))(i)
 }

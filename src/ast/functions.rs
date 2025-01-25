@@ -389,3 +389,53 @@ pub const GET_MVCC_INFO: &str = "get_mvcc_info";
 pub const NEXT_VAL: &str = "nextval";
 pub const LAST_VAL: &str = "lastval";
 pub const SET_VAL: &str = "setval";
+
+#[derive(Debug)]
+pub enum TrimDirectionType {
+    BothDefault,
+    Both,
+    Leading,
+    Trailing,
+}
+
+impl std::fmt::Display for TrimDirectionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrimDirectionType::BothDefault => {
+                write!(f, "{}", "BOTH")
+            }
+            TrimDirectionType::Both => {
+                write!(f, "{}", "BOTH")
+            }
+            TrimDirectionType::Leading => {
+                write!(f, "{}", "LEADING")
+            }
+            TrimDirectionType::Trailing => {
+                write!(f, "{}", "TRAILING")
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum GetFormatSelectorType {
+    Date,
+    Time,
+    Datetime,
+}
+
+impl std::fmt::Display for GetFormatSelectorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GetFormatSelectorType::Date => {
+                write!(f, "{}", "DATE")
+            }
+            GetFormatSelectorType::Time => {
+                write!(f, "{}", "TIME")
+            }
+            GetFormatSelectorType::Datetime => {
+                write!(f, "{}", "DATETIME")
+            }
+        }
+    }
+}

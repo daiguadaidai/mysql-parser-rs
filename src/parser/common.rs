@@ -47,7 +47,11 @@ pub fn match_token(kind: TokenKind) -> impl FnMut(Input) -> IResult<&Token> {
 }
 
 pub fn any_token(i: Input) -> IResult<&Token> {
-    match i.tokens.first().filter(|token| token.kind != TokenKind::EOI) {
+    match i
+        .tokens
+        .first()
+        .filter(|token| token.kind != TokenKind::EOI)
+    {
         Some(token) => Ok((i.slice(1..), token)),
         _ => Err(nom::Err::Error(Error::from_error_kind(
             i,
@@ -248,8 +252,8 @@ pub fn run_pratt_parser<'a, I, P, E>(
 ) -> IResult<'a, P::Output>
 where
     E: std::fmt::Debug,
-    P: PrattParser<I, Input=WithSpan<'a, E>, Error=&'static str>,
-    I: Iterator<Item=P::Input> + ExactSizeIterator + Clone,
+    P: PrattParser<I, Input = WithSpan<'a, E>, Error = &'static str>,
+    I: Iterator<Item = P::Input> + ExactSizeIterator + Clone,
 {
     let mut iter_cloned = iter.clone();
     let mut iter = iter.clone().peekable();
@@ -350,3 +354,7 @@ macro_rules! declare_experimental_feature {
 
 declare_experimental_feature!(check_experimental_chain_function, "chain function");
 declare_experimental_feature!(check_experimental_list_comprehension, "list comprehension");
+
+pub fn get_u64_form_num(num: &str) -> u64 {
+    num.parse::<u64>().unwrap_or_else(|_| 0)
+}
