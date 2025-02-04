@@ -4,7 +4,7 @@ use crate::ast::index_hint::IndexHint;
 use crate::ast::table_sample::TableSample;
 use derive_visitor::Drive;
 
-#[derive(Debug, Drive)]
+#[derive(Debug, Default, Drive)]
 pub struct TableName {
     #[drive(skip)]
     pub schema: CIStr,
@@ -15,10 +15,10 @@ pub struct TableName {
     pub index_hints: Vec<IndexHint>,
     #[drive(skip)]
     pub partition_names: Vec<CIStr>,
-    pub table_sample: Box<TableSample>,
+    pub table_sample: Option<Box<TableSample>>,
 
     // AS OF is used to see the data as it was at a specific point in time.
-    pub as_of: Box<ExprNode>,
+    pub as_of: Option<Box<ExprNode>>,
 
     // IsAlias is true if this table name is an alias.
     //  sometime, we need to distinguish the table name is an alias or not.

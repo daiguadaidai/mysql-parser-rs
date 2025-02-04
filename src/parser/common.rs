@@ -23,6 +23,7 @@ use nom::sequence::terminated;
 use nom::Offset;
 use nom::Slice;
 use pratt::{PrattError, PrattParser, Precedence};
+use std::num::ParseIntError;
 
 pub type IResult<'a, Output> = nom::IResult<Input<'a>, Output, Error<'a>>;
 
@@ -357,4 +358,12 @@ declare_experimental_feature!(check_experimental_list_comprehension, "list compr
 
 pub fn get_u64_form_num(num: &str) -> u64 {
     num.parse::<u64>().unwrap_or_else(|_| 0)
+}
+
+pub fn get_i64_form_num(num: &str) -> Result<i64, ParseIntError> {
+    num.parse::<i64>()
+}
+
+pub fn get_isize_form_num(num: &str) -> isize {
+    num.parse::<isize>().unwrap_or_else(|_| 0)
 }

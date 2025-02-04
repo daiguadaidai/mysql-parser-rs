@@ -6,8 +6,11 @@ use crate::ast::common::{
 };
 use crate::ast::expr_node::{ColumnNameExpr, ExprNode, ValueExpr, ValueExprKind};
 use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionType};
+use crate::ast::table_name::TableName;
+use crate::common::misc::is_in_correct_identifier_name;
 use crate::mysql::consts::PriorityEnum;
 use crate::parser::common::*;
+use crate::parser::error::ErrorKind;
 use crate::parser::input::Input;
 use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
@@ -963,7 +966,9 @@ pub fn func_datetime_prec(i: Input) -> IResult<Option<ValueExpr>> {
     alt((
         map(rule!(#optional_braces?), |_| None),
         map(rule!("(" ~ LiteralInteger ~ ")"), |(_, t, _)| {
-            let value_expr = ValueExpr::new(t.text(), ValueExprKind::Isize, i.charset, i.collation);
+            let val = get_isize_form_num(t.text());
+            let value_expr =
+                ValueExpr::new(t.text(), ValueExprKind::Isize(val), i.charset, i.collation);
             Some(value_expr)
         }),
     ))(i)
@@ -973,8 +978,13 @@ pub fn func_datetime_prec_list_opt(i: Input) -> IResult<Vec<ExprNode>> {
     map(rule!(LiteralInteger?), |t| match t {
         None => vec![],
         Some(token) => {
-            let value_expr =
-                ValueExpr::new(token.text(), ValueExprKind::Isize, i.charset, i.collation);
+            let val = get_isize_form_num(token.text());
+            let value_expr = ValueExpr::new(
+                token.text(),
+                ValueExprKind::Isize(val),
+                i.charset,
+                i.collation,
+            );
             vec![ExprNode::ValueExpr(value_expr)]
         }
     })(i)
@@ -1052,4 +1062,73 @@ pub fn field_len(i: Input) -> IResult<isize> {
 
 pub fn length_num(i: Input) -> IResult<u64> {
     map(rule!(LiteralInteger), |(val)| get_u64_form_num(val.text()))(i)
+}
+
+pub fn table_name(i: Input) -> IResult<TableName> {
+    alt((
+        map(rule!(#identifier), |(table_name)| {
+            let mut tbl_name = TableName::default();
+            tbl_name.name = CIStr::new(&table_name);
+            tbl_name
+        }),
+        map_res(
+            rule!(#identifier ~ "." ~ #identifier),
+            |(schema_name, _, table_name)| {
+                if is_in_correct_identifier_name(&schema_name) {
+                    return Err(nom::Err::Error(ErrorKind::ExpectText(
+                        "parse table_name in is_in_correct_identifier_name",
+                    )));
+                }
+
+                let mut tbl_name = TableName::default();
+
+                tbl_name.schema = CIStr::new(&schema_name);
+                tbl_name.name = CIStr::new(&table_name);
+
+                Ok(tbl_name)
+            },
+        ),
+        map(rule!("*" ~ "." ~ #identifier), |(_, _, table_name)| {
+            let mut tbl_name = TableName::default();
+            tbl_name.schema = CIStr::new("*");
+            tbl_name.name = CIStr::new(&table_name);
+            tbl_name
+        }),
+    ))(i)
+}
+
+pub fn i64_num(i: Input) -> IResult<i64> {
+    map_res(rule!(LiteralInteger), |(val)| {
+        let v = get_i64_form_num(val.text());
+        match v {
+            Ok(val) => Ok(val),
+            Err(e) => Err(nom::Err::Error(ErrorKind::ExpectText(&format!(
+                "{} is out of range [–9223372036854775808,9223372036854775807]. {}",
+                val.text(),
+                e.to_string()
+            )))),
+        }
+    })(i)
+}
+
+pub fn signed_num(i: Input) -> IResult<i64> {
+    alt((
+        map(rule!(#i64_num), |(val)| val),
+        map(rule!("+" ~ #i64_num), |(_, val)| val),
+        map_res(rule!("-" ~ LiteralInteger), |(_, val)| {
+            let unsigned_num = get_u64_form_num(val.text());
+            if unsigned_num > 9223372036854775808 {
+                return Err(nom::Err::Error(ErrorKind::ExpectText(&format!(
+                    "current value: {}. the Signed Value should be at the range of [-9223372036854775808, 9223372036854775807].",
+                    val.text(),
+                ))));
+            } else if unsigned_num == 9223372036854775808 {
+                let d = 1_i64 << 63;
+                return Ok(d);
+            } else {
+                let d = -(unsigned_num as i64);
+                Ok(d)
+            }
+        }),
+    ))(i)
 }

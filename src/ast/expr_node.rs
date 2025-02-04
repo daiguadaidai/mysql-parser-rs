@@ -4,6 +4,7 @@ use crate::ast::common::FulltextSearchModifier;
 use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionType};
 use crate::ast::op_code;
 use crate::ast::subquery_expr::SubqueryExpr;
+use crate::ast::table_name::TableName;
 use bigdecimal::BigDecimal;
 use derive_visitor::Drive;
 
@@ -30,6 +31,7 @@ pub enum ExprNode {
     TrimDirectionExpr(TrimDirectionExpr),
     #[drive(skip)]
     GetFormatSelectorExpr(GetFormatSelectorExpr),
+    TableNameExpr(TableNameExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -194,4 +196,9 @@ pub struct TrimDirectionExpr {
 #[derive(Debug)]
 pub struct GetFormatSelectorExpr {
     pub selector: GetFormatSelectorType,
+}
+
+#[derive(Debug, Drive)]
+pub struct TableNameExpr {
+    pub name: TableName,
 }

@@ -1,12 +1,14 @@
 use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
-    BinaryOperationExpr, ExprNode, FuncCallExpr, GetFormatSelectorExpr, MatchAgainst, TimeUnitExpr,
-    TrimDirectionExpr, UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr,
+    BinaryOperationExpr, ExprNode, FuncCallExpr, FuncCallExprType, GetFormatSelectorExpr,
+    MatchAgainst, TableNameExpr, TimeUnitExpr, TrimDirectionExpr, UnaryOperationExpr, ValueExpr,
+    ValueExprKind, VariableExpr,
 };
 use crate::ast::functions;
 use crate::ast::functions::TimeUnitType;
 use crate::ast::op_code::OpCode;
+use crate::common::misc::is_in_token_map;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::common::{
@@ -14,7 +16,8 @@ use crate::parser::statements::common::{
     func_datetime_prec_list_opt, function_name_conflict, function_name_date_arith,
     function_name_date_arith_multi_forms, function_name_datetime_precision,
     function_name_optional_braces, get_format_selector, log_and, log_or, optional_braces,
-    simple_ident, string_lit, time_unit, timestamp_unit, timestamp_unit_sql_tsi, trim_direction,
+    signed_num, simple_ident, string_lit, table_name, time_unit, timestamp_unit,
+    timestamp_unit_sql_tsi, trim_direction,
 };
 use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
@@ -226,6 +229,10 @@ pub fn simple_expr_sub_1(i: Input) -> IResult<ExprNode> {
     alt((
         map(rule!(#simple_ident), |expr| ExprNode::ColumnNameExpr(expr)),
         map(rule!(#function_call_keyword), |expr| expr),
+        map(rule!(#function_call_non_keyword), |expr| expr),
+        map(rule!(#function_call_generic), |expr| {
+            ExprNode::FuncCallExpr(expr)
+        }),
     ))(i)
 }
 
@@ -621,14 +628,123 @@ pub fn function_call_non_keyword_2(i: Input) -> IResult<ExprNode> {
                 ExprNode::FuncCallExpr(fn_expr)
             },
         ),
-        // @TODO
+        map(rule!(#function_name_sequence), |expr| {
+            ExprNode::FuncCallExpr(expr)
+        }),
+        map(
+            rule!(TRANSLATE ~ "(" ~ #expression ~ "," ~ #expression ~ "," ~ #expression ~ ")"),
+            |(_, _, expr1, _, expr2, _, expr3, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::TRANSLATE);
+                fn_expr.args = vec![expr1, expr2, expr3];
+
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
     ))(i)
 }
 
-fn expression_list_opt(i: Input) -> IResult<Vec<ExprNode>> {
+pub fn expression_list_opt(i: Input) -> IResult<Vec<ExprNode>> {
     separated_list0(map(rule!(","), |_| ()), expression)(i)
 }
 
-fn expression_list(i: Input) -> IResult<Vec<ExprNode>> {
+pub fn expression_list(i: Input) -> IResult<Vec<ExprNode>> {
     separated_list1(map(rule!(","), |_| ()), expression)(i)
+}
+
+pub fn function_name_sequence(i: Input) -> IResult<FuncCallExpr> {
+    alt((
+        map(
+            rule!(LASTVAL ~ "(" ~ #table_name ~ ")"),
+            |(_, _, table_name, _)| {
+                let obj_name_expr = ExprNode::TableNameExpr(TableNameExpr { name: table_name });
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::LAST_VAL);
+                fn_expr.args = vec![obj_name_expr];
+
+                fn_expr
+            },
+        ),
+        map(
+            rule!(SETVAL ~ "(" ~ #table_name ~ "," ~ #signed_num ~ ")"),
+            |(_, _, table_name, _, num, _)| {
+                let obj_name_expr = ExprNode::TableNameExpr(TableNameExpr { name: table_name });
+                let value_expr = ExprNode::ValueExpr(ValueExpr::new(
+                    &num.to_string(),
+                    ValueExprKind::I64(num),
+                    i.charset,
+                    i.collation,
+                ));
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::SET_VAL);
+                fn_expr.args = vec![obj_name_expr, value_expr];
+
+                fn_expr
+            },
+        ),
+        map(rule!(#next_value_for_sequence), |(expr)| expr),
+    ))(i)
+}
+
+pub fn next_value_for_sequence(i: Input) -> IResult<FuncCallExpr> {
+    alt((
+        map(
+            rule!(NEXT ~ VALUE ~ FOR ~ #table_name),
+            |(_, _, _, table_name)| {
+                let obj_name_expr = ExprNode::TableNameExpr(TableNameExpr { name: table_name });
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::NEXT_VAL);
+                fn_expr.args = vec![obj_name_expr];
+
+                fn_expr
+            },
+        ),
+        map(
+            rule!(NEXTVAL ~ "(" ~ #table_name ~ ")"),
+            |(_, _, table_name, _)| {
+                let obj_name_expr = ExprNode::TableNameExpr(TableNameExpr { name: table_name });
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::NEXT_VAL);
+                fn_expr.args = vec![obj_name_expr];
+
+                fn_expr
+            },
+        ),
+    ))(i)
+}
+
+pub fn function_call_generic(i: Input) -> IResult<FuncCallExpr> {
+    alt((
+        map(
+            rule!(Ident ~ "(" ~ #expression_list_opt ~ ")"),
+            |(t, _, exprs, _)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(t.get_trim_start_end_text('`'));
+                fn_expr.args = exprs;
+
+                fn_expr
+            },
+        ),
+        map(
+            rule!(Ident ~ "." ~ Ident ~ "(" ~ #expression_list_opt ~ ")"),
+            |(t1, _, t2, _, exprs, _)| {
+                let tp = if is_in_token_map(&t2.text().to_uppercase()) {
+                    FuncCallExprType::Keyword
+                } else {
+                    FuncCallExprType::Generic
+                };
+
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.schema = CIStr::new(t1.get_trim_start_end_text('`'));
+                fn_expr.fn_name = CIStr::new(t2.text());
+                fn_expr.args = exprs;
+
+                fn_expr
+            },
+        ),
+    ))(i)
 }

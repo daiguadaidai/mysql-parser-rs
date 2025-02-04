@@ -285,6 +285,8 @@ pub enum TokenKind {
     DELETE,
     #[token("DENSE_RANK", ignore(ascii_case))]
     DENSE_RANK,
+    #[token("DEC", ignore(ascii_case))]
+    DEC,
     #[token("DESC", ignore(ascii_case))]
     DESC,
     #[token("DESCRIBE", ignore(ascii_case))]
@@ -1321,6 +1323,8 @@ pub enum TokenKind {
     SUBPARTITION,
     #[token("SUBPARTITIONS", ignore(ascii_case))]
     SUBPARTITIONS,
+    #[token("SUBSTR", ignore(ascii_case))]
+    SUBSTR,
     #[token("SUPER", ignore(ascii_case))]
     SUPER,
     #[token("SWAPS", ignore(ascii_case))]
@@ -1365,6 +1369,8 @@ pub enum TokenKind {
     TRADITIONAL,
     #[token("TRANSACTION", ignore(ascii_case))]
     TRANSACTION,
+    #[token("TRANSLATE", ignore(ascii_case))]
+    TRANSLATE,
     #[token("TRIGGERS", ignore(ascii_case))]
     TRIGGERS,
     #[token("TRUNCATE", ignore(ascii_case))]
@@ -1679,6 +1685,10 @@ pub enum TokenKind {
     PRIMARY_REGION,
     #[token("SCHEDULE", ignore(ascii_case))]
     SCHEDULE,
+    #[token("SCHEMA", ignore(ascii_case))]
+    SCHEMA,
+    #[token("SCHEMAS", ignore(ascii_case))]
+    SCHEMAS,
     #[token("SURVIVAL_PREFERENCES", ignore(ascii_case))]
     SURVIVAL_PREFERENCES,
     #[token("LEADER_CONSTRAINTS", ignore(ascii_case))]
@@ -2066,10 +2076,10 @@ impl TokenKind {
             | TokenKind::XOR
             | TokenKind::YEAR_MONTH
             | TokenKind::ZEROFILL
-            if !after_as =>
-                {
-                    true
-                }
+                if !after_as =>
+            {
+                true
+            }
             _ => false,
         }
     }

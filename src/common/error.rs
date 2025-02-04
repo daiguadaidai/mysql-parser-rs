@@ -16,6 +16,7 @@ use crate::common::span::{pretty_print_error, Span};
 use std::error::Error;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::num::ParseIntError;
 
 pub type Result<T> = std::result::Result<T, ParseError>;
 
@@ -42,6 +43,7 @@ impl Display for ParseError {
 pub enum CustomError {
     Normal(String),
     ParseError(ParseError),
+    ParseIntError(ParseIntError),
 }
 
 impl Error for CustomError {}
@@ -54,6 +56,9 @@ impl Display for CustomError {
             }
             CustomError::ParseError(v) => {
                 write!(f, "{}", v.to_string())
+            }
+            CustomError::ParseIntError(e) => {
+                write!(f, "{}", e.to_string())
             }
         }
     }
