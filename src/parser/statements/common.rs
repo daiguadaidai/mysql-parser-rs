@@ -7,6 +7,7 @@ use crate::ast::common::{
 use crate::ast::expr_node::{ColumnNameExpr, ExprNode, ValueExpr, ValueExprKind};
 use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionType};
 use crate::ast::table_name::TableName;
+use crate::charset::charset;
 use crate::common::misc::is_in_correct_identifier_name;
 use crate::mysql::consts::PriorityEnum;
 use crate::parser::common::*;
@@ -1130,5 +1131,21 @@ pub fn signed_num(i: Input) -> IResult<i64> {
                 Ok(d)
             }
         }),
+    ))(i)
+}
+
+pub fn collation_name(i: Input) -> IResult<String> {
+    alt((
+        map_res(
+            rule!(#string_name),
+            |(name)| match charset::get_collation_by_name(&name) {
+                Ok(v) => Ok(v.name),
+                Err(e) => Err(nom::Err::Error(ErrorKind::ExpectText(&format!(
+                    "{}",
+                    e.to_string()
+                )))),
+            },
+        ),
+        map(rule!(BINARY), |(_)| Ok(charset::COLLATION_BIN.to_string())),
     ))(i)
 }

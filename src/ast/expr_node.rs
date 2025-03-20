@@ -32,6 +32,7 @@ pub enum ExprNode {
     #[drive(skip)]
     GetFormatSelectorExpr(GetFormatSelectorExpr),
     TableNameExpr(TableNameExpr),
+    SetCollationExpr(SetCollationExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -201,4 +202,11 @@ pub struct GetFormatSelectorExpr {
 #[derive(Debug, Drive)]
 pub struct TableNameExpr {
     pub name: TableName,
+}
+
+#[derive(Debug, Drive)]
+pub struct SetCollationExpr {
+    pub expr: Option<Box<ExprNode>>,
+    #[drive(skip)]
+    pub collate: String,
 }

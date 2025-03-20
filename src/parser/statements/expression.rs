@@ -2,8 +2,8 @@ use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
     BinaryOperationExpr, ExprNode, FuncCallExpr, FuncCallExprType, GetFormatSelectorExpr,
-    MatchAgainst, TableNameExpr, TimeUnitExpr, TrimDirectionExpr, UnaryOperationExpr, ValueExpr,
-    ValueExprKind, VariableExpr,
+    MatchAgainst, SetCollationExpr, TableNameExpr, TimeUnitExpr, TrimDirectionExpr,
+    UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr,
 };
 use crate::ast::functions;
 use crate::ast::functions::TimeUnitType;
@@ -12,7 +12,7 @@ use crate::common::misc::is_in_token_map;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::common::{
-    column_name_list, field_len, fulltext_search_modifier_opt, func_datetime_prec,
+    collation_name, column_name_list, field_len, fulltext_search_modifier_opt, func_datetime_prec,
     func_datetime_prec_list_opt, function_name_conflict, function_name_date_arith,
     function_name_date_arith_multi_forms, function_name_datetime_precision,
     function_name_optional_braces, get_format_selector, log_and, log_or, optional_braces,
@@ -233,6 +233,15 @@ pub fn simple_expr_sub_1(i: Input) -> IResult<ExprNode> {
         map(rule!(#function_call_generic), |expr| {
             ExprNode::FuncCallExpr(expr)
         }),
+        map(
+            rule!(#simple_expr ~ COLLATE ~ #collation_name),
+            |(expr, _, collate)| {
+                ExprNode::SetCollationExpr(SetCollationExpr {
+                    expr: Some(Box::new(expr)),
+                    collate,
+                })
+            },
+        ),
     ))(i)
 }
 

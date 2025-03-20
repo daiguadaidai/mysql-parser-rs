@@ -1,7 +1,16 @@
+use crate::common::error::CustomError;
+use crate::mysql::errcode;
+use crate::mysql::errname::mysql_err_name;
+use formatx::formatx;
 use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+
+lazy_static! {
+    // ErrUnknownCollation is unknown collation.
+    // pub static ref err_unknown_collation: CustomError = terror::
+}
 
 // PadSpace is to mark that trailing spaces are insignificant in comparisons
 pub const PAD_SPACE: &str = "PAD SPACE";
@@ -100,6 +109,25 @@ impl Collation {
             sortlen,
             pad_attribute,
         )))
+    }
+}
+
+fn utf8_alias(csname: &str) -> String {
+    match csname {
+        "utf8mb3_bin" => "utf8_bin".to_string(),
+        "utf8mb3_unicode_ci" => "utf8_unicode_ci".to_string(),
+        "utf8mb3_general_ci" => "utf8_general_ci".to_string(),
+        _ => "".to_string(),
+    }
+}
+pub fn get_collation_by_name(name: &str) -> Result<Collation, CustomError> {
+    let csname: String = utf8_alias(&name.to_uppercase());
+    let msg = mysql_err_name.get(&errcode::ERR_UNKNOWN_COLLATION).unwrap();
+    let msg = formatx!(&msg.raw, name).unwrap();
+
+    match collations_name_map.get(&csname) {
+        None => Err(CustomError::Normal(msg)),
+        Some(c) => Ok(c.borrow().clone()),
     }
 }
 
