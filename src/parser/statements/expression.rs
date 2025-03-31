@@ -3,11 +3,14 @@ use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURA
 use crate::ast::expr_node::{
     BinaryOperationExpr, ExprNode, FuncCallExpr, FuncCallExprType, GetFormatSelectorExpr,
     MatchAgainst, SetCollationExpr, TableNameExpr, TimeUnitExpr, TrimDirectionExpr,
-    UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr,
+    UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr, WindowFuncExpr,
 };
 use crate::ast::functions;
 use crate::ast::functions::TimeUnitType;
+use crate::ast::group_by_clause::ByItem;
 use crate::ast::op_code::OpCode;
+use crate::ast::partition_by_clause::PartitionByClause;
+use crate::ast::window_spec::WindowSpec;
 use crate::common::misc::is_in_token_map;
 use crate::parser::common::*;
 use crate::parser::input::Input;
@@ -756,4 +759,55 @@ pub fn function_call_generic(i: Input) -> IResult<FuncCallExpr> {
             },
         ),
     ))(i)
+}
+
+pub fn window_func_call(i: Input) -> IResult<WindowFuncExpr> {}
+
+pub fn windowing_clause(i: Input) -> IResult<WindowSpec> {}
+
+pub fn window_name_or_spec(i: Input) -> IResult<WindowSpec> {}
+pub fn window_name(i: Input) -> IResult<CIStr> {
+    map(rule!(Ident), |(t)| {
+        let s = t.get_trim_start_end_text('`');
+        CIStr::new(s)
+    })
+}
+
+pub fn window_spec(i: Input) -> IResult<WindowSpec> {}
+
+pub fn window_spec_details(i: Input) -> IResult<WindowSpec> {}
+
+pub fn opt_existing_window_name(i: Input) -> IResult<CIStr> {
+    map(rule!(#window_name?), |(name)| {
+        name.unwrap_or_else(|| CIStr::new(""))
+    })
+}
+
+pub fn opt_partition_clause(i: Input) -> IResult<PartitionByClause> {
+    map(rule!(PARTITION ~ BY ~ #by_list), |(items)|)
+}
+
+pub fn by_list(i: Input) -> IResult<Vec<ByItem>> {
+    separated_list1(map(rule!(","), |_| ()), by_item)(i)
+}
+
+pub fn by_item(i: Input) -> IResult<ByItem> {
+    alt(map(rule!(#expression), |(expr)| {
+        if let ExprNode::ValueExpr(value_expr) = expr {
+            if let Some(position) = value_expr.get_value_i64() {
+                expr =
+            }
+        }
+
+        ByItem{expr, null_order: true}
+    }), map(rule!(#expression ~ #order), |(expr, o)|))(i)
+}
+
+
+pub fn order(i:Input) -> IResult<bool> {
+    alt((map(rule!(ASC), |_| false), map(rule!(DESC), |_| true)))(i)
+}
+
+pub fn opt_order(i: Input) -> IResult<bool> {
+    map(rule!(#order?), |(b)| b.unwrap_or_else(||false))(i)
 }

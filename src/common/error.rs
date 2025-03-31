@@ -44,6 +44,7 @@ pub enum CustomError {
     Normal(String),
     ParseError(ParseError),
     ParseIntError(ParseIntError),
+    FormatxError(formatx::Error),
 }
 
 impl Error for CustomError {}
@@ -51,15 +52,34 @@ impl Error for CustomError {}
 impl Display for CustomError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
-            CustomError::Normal(v) => {
-                write!(f, "{}", v)
-            }
-            CustomError::ParseError(v) => {
-                write!(f, "{}", v.to_string())
-            }
-            CustomError::ParseIntError(e) => {
-                write!(f, "{}", e.to_string())
-            }
+            CustomError::Normal(e) => e.fmt(f),
+            CustomError::ParseError(e) => e.fmt(f),
+            CustomError::ParseIntError(e) => e.fmt(f),
+            CustomError::FormatxError(e) => e.fmt(f),
         }
+    }
+}
+
+impl From<String> for CustomError {
+    fn from(e: String) -> Self {
+        CustomError::Normal(e)
+    }
+}
+
+impl From<ParseError> for CustomError {
+    fn from(e: ParseError) -> Self {
+        CustomError::ParseError(e)
+    }
+}
+
+impl From<ParseIntError> for CustomError {
+    fn from(e: ParseIntError) -> CustomError {
+        CustomError::ParseIntError(e)
+    }
+}
+
+impl From<formatx::Error> for CustomError {
+    fn from(e: formatx::Error) -> CustomError {
+        CustomError::FormatxError(e)
     }
 }

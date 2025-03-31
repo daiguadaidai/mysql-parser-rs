@@ -15,8 +15,8 @@ pub struct WindowSpec {
     pub references: CIStr,
 
     pub partition_by: Vec<ByItem>,
-    pub order_by: Box<OrderByClause>,
-    pub frame: Box<FrameClause>,
+    pub order_by: Option<OrderByClause>,
+    pub frame: Option<FrameClause>,
 
     // OnlyAlias will set to true of the first following case.
     // To make compatible with MySQL, we need to distinguish `select func over w` from `select func over (w)`.

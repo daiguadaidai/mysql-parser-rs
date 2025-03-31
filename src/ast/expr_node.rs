@@ -5,6 +5,7 @@ use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionTy
 use crate::ast::op_code;
 use crate::ast::subquery_expr::SubqueryExpr;
 use crate::ast::table_name::TableName;
+use crate::ast::window_spec::WindowSpec;
 use bigdecimal::BigDecimal;
 use derive_visitor::Drive;
 
@@ -33,6 +34,7 @@ pub enum ExprNode {
     GetFormatSelectorExpr(GetFormatSelectorExpr),
     TableNameExpr(TableNameExpr),
     SetCollationExpr(SetCollationExpr),
+    WindowFuncExpr(WindowFuncExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -182,6 +184,15 @@ impl ValueExpr {
             collation: collation.to_string(),
         }
     }
+
+    pub fn get_value_i64(&self) -> Option<i64> {
+        match self.kind {
+            ValueExprKind::Isize(v) => Some(v as i64),
+            ValueExprKind::I64(v) => Some(v),
+            ValueExprKind::U64(v) => Some(v as i64),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Drive)]
@@ -209,4 +220,39 @@ pub struct SetCollationExpr {
     pub expr: Option<Box<ExprNode>>,
     #[drive(skip)]
     pub collate: String,
+}
+
+// WindowFuncExpr represents window function expression.
+#[derive(Debug, Drive)]
+pub struct WindowFuncExpr {
+    // Name is the function name.
+    #[drive(skip)]
+    pub name: String,
+    // Args is the function args.
+    pub args: Vec<ExprNode>,
+    // Distinct cannot be true for most window functions, except `max` and `min`.
+    // We need to raise error if it is not allowed to be true.
+    #[drive(skip)]
+    pub distinct: bool,
+    // IgnoreNull indicates how to handle null value.
+    // MySQL only supports `RESPECT NULLS`, so we need to raise error if it is true.
+    #[drive(skip)]
+    pub ignore_null: bool,
+    // FromLast indicates the calculation direction of this window function.
+    // MySQL only supports calculation from first, so we need to raise error if it is true.
+    #[drive(skip)]
+    pub from_last: bool,
+    // Spec is the specification of this window.
+    pub spec: Option<WindowSpec>,
+}
+
+// PositionExpr is the expression for order by and group by position.
+// MySQL use position expression started from 1, it looks a little confused inner.
+// maybe later we will use 0 at first.
+pub struct  PositionExpr  {
+    exprNode
+    // N is the position, started from 1 now.
+    pub n: isize,
+    // P is the parameterized position.
+    pub p: Option<Box<ExprNode>>
 }

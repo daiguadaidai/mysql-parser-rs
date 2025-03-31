@@ -17,7 +17,7 @@ pub enum FrameType {
 pub struct FrameClause {
     #[drive(skip)]
     pub tp: FrameType,
-    pub extent: FrameExtent,
+    pub extent: Option<FrameExtent>,
 }
 
 // FrameType is the type of window function frame bound.
@@ -36,16 +36,15 @@ pub struct FrameBound {
     pub tp: BoundType,
     #[drive(skip)]
     pub un_bounded: bool,
-    pub expr: Box<ExprNode>,
+    pub expr: Option<Box<ExprNode>>,
     // `Unit` is used to indicate the units in which the `Expr` should be interpreted.
     // For example: '2:30' MINUTE_SECOND.
     #[drive(skip)]
     pub unit: TimeUnitType,
 }
 
-
 #[derive(Debug, Drive)]
 pub struct FrameExtent {
-    pub start: FrameBound,
-    pub end: FrameBound,
+    pub start: Option<FrameBound>,
+    pub end: Option<FrameBound>,
 }

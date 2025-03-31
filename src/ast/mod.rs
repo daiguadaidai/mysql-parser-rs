@@ -1,3 +1,4 @@
+mod base;
 pub mod ci_str;
 pub mod column_name;
 pub mod common;
@@ -11,9 +12,9 @@ pub mod limit;
 pub mod line_clause;
 pub mod op_code;
 pub mod order_by_clause;
+pub mod partition_by_clause;
 pub mod quote;
 pub mod result_set_node;
-pub mod row_expr;
 pub mod select_field;
 pub mod select_into_option;
 pub mod select_lock_info;

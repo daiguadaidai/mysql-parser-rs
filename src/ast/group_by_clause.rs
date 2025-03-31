@@ -4,7 +4,7 @@ use derive_visitor::Drive;
 // ByItem represents an item in order by or group by.
 #[derive(Debug, Drive)]
 pub struct ByItem {
-    pub expr: Box<ExprNode>,
+    pub expr: Option<Box<ExprNode>>,
     #[drive(skip)]
     pub desc: bool,
     #[drive(skip)]
