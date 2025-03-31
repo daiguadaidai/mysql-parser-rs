@@ -49,7 +49,7 @@ impl EncodingTrait for EncodingASCII {
         src.iter().all(|&b| b <= 127)
     }
 
-    fn foreach<F>(&self, src: &[u8], op: i16, f: F)
+    fn foreach<F>(&self, src: &[u8], _: i16, f: F)
     where
         F: FnMut(&[u8], &[u8], bool) -> bool,
     {

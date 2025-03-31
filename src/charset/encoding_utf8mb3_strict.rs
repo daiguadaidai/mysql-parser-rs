@@ -58,7 +58,7 @@ impl EncodingTrait for EncodingUtf8Mb3Strict {
         std::str::from_utf8(src).is_ok()
     }
 
-    fn foreach<F>(&self, src: &[u8], op: i16, f: F)
+    fn foreach<F>(&self, src: &[u8], _: i16, f: F)
     where
         F: FnMut(&[u8], &[u8], bool) -> bool,
     {
