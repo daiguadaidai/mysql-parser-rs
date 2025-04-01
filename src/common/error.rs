@@ -45,6 +45,7 @@ pub enum CustomError {
     ParseError(ParseError),
     ParseIntError(ParseIntError),
     FormatxError(formatx::Error),
+    IoError(std::io::Error),
 }
 
 impl Error for CustomError {}
@@ -56,6 +57,7 @@ impl Display for CustomError {
             CustomError::ParseError(e) => e.fmt(f),
             CustomError::ParseIntError(e) => e.fmt(f),
             CustomError::FormatxError(e) => e.fmt(f),
+            CustomError::IoError(e) => e.fmt(f),
         }
     }
 }
@@ -81,5 +83,11 @@ impl From<ParseIntError> for CustomError {
 impl From<formatx::Error> for CustomError {
     fn from(e: formatx::Error) -> CustomError {
         CustomError::FormatxError(e)
+    }
+}
+
+impl From<std::io::Error> for CustomError {
+    fn from(e: std::io::Error) -> CustomError {
+        CustomError::IoError(e)
     }
 }

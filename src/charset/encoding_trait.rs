@@ -31,7 +31,7 @@ pub trait EncodingTrait {
     }
 }
 
-const REPLACEMENT_BYTES: &[u8] = &[0xEF, 0xBF, 0xBD];
+pub const REPLACEMENT_BYTES: &[u8] = &[0xEF, 0xBF, 0xBD];
 
 // beginWithReplacementChar check if dst has the prefix '0xEFBFBD'.
 pub fn begin_with_replacement_char(dst: &[u8]) -> bool {
