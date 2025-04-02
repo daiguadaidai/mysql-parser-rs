@@ -1,18 +1,12 @@
 use crate::charset::charset;
 use crate::charset::encoding::{
-    EncodingTp, EncodingTrait, OP_COLLECR_TO, OP_COLLECT_FROM, OP_SKIP_ERROR, OP_TRUNCATE_REPLACE,
+    EncodingTp, OP_COLLECR_TO, OP_COLLECT_FROM, OP_SKIP_ERROR, OP_TRUNCATE_REPLACE,
     OP_TRUNCATE_TRIM,
 };
-use crate::charset::encoding_trait::generate_encoding_err;
+use crate::charset::encoding_trait::{generate_encoding_err, EncodingTrait};
 use crate::common::error::CustomError;
-use lazy_static::lazy_static;
 
-lazy_static! {
-    pub static ref encoding_utf8_impl: EncodingUTF8 = EncodingUTF8 {
-        enc: encoding_rs::UTF_8,
-    };
-}
-
+#[allow(dead_code)]
 pub struct EncodingUTF8 {
     pub enc: &'static encoding_rs::Encoding,
 }
@@ -114,7 +108,7 @@ impl EncodingTrait for EncodingUTF8 {
 
             if op & OP_COLLECT_FROM != 0 {
                 dest.extend_from_slice(from);
-            } else if op & OP_COLLECR_TO {
+            } else if op & OP_COLLECR_TO != 0 {
                 dest.extend_from_slice(to);
             }
 

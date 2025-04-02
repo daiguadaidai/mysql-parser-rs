@@ -13,7 +13,6 @@ strum_macros = "0.26.4"
 serde = { version = "1.0.215", features = ["derive"] }
 enum-as-inner = "0.6.1"
 fastrace = "0.7.4"
-ethnum = "1.5.0"
 itertools = "0.13.0"
 ordered-float = "4.5.0"
 fast-float = "0.2.0"

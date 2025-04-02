@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub const ERR_ERROR_FIRST: isize = 1000;
 pub const ERR_HASHCHK: isize = 1000;
 pub const ERR_NISAMCHK: isize = 1001;
@@ -863,6 +864,7 @@ pub const ERR_IDENT_CAUSES_TOO_LONG_PATH: isize = 1860;
 pub const ERR_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL: isize = 1861;
 pub const ERR_MUST_CHANGE_PASSWORD_LOGIN: isize = 1862;
 pub const ERR_ROW_IN_WRONG_PARTITION: isize = 1863;
+#[allow(dead_code)]
 pub const ERR_ERROR_LAST: isize = 1863;
 pub const ERR_INVALID_FIELD_SIZE: isize = 3013;
 pub const ERR_PASSWORD_EXPIRE_ANONYMOUS_USER: isize = 3016;

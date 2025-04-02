@@ -1,14 +1,9 @@
 use crate::charset::charset;
-use crate::charset::encoding::{EncodingTp, EncodingTrait};
+use crate::charset::encoding::EncodingTp;
+use crate::charset::encoding_trait::EncodingTrait;
 use crate::common::error::CustomError;
-use lazy_static::lazy_static;
 
-lazy_static! {
-    pub static ref encoding_latin1_impl: EncodingLatin1 = EncodingLatin1 {
-        enc: encoding_rs::UTF_8,
-    };
-}
-
+#[allow(dead_code)]
 pub struct EncodingLatin1 {
     pub enc: &'static encoding_rs::Encoding,
 }
@@ -39,7 +34,7 @@ impl EncodingTrait for EncodingLatin1 {
         }
     }
 
-    fn is_valid(&self, src: &[u8]) -> bool {
+    fn is_valid(&self, _: &[u8]) -> bool {
         true
     }
 

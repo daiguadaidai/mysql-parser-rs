@@ -1,22 +1,15 @@
 use crate::charset::charset;
 use crate::charset::encoding::{
-    EncodingTp, EncodingTrait, OP_COLLECR_TO, OP_COLLECT_FROM, OP_FROM_UTF8, OP_SKIP_ERROR,
-    OP_TO_UTF8, OP_TRUNCATE_REPLACE, OP_TRUNCATE_TRIM,
+    EncodingTp, OP_COLLECR_TO, OP_COLLECT_FROM, OP_FROM_UTF8, OP_SKIP_ERROR, OP_TO_UTF8,
+    OP_TRUNCATE_REPLACE, OP_TRUNCATE_TRIM,
 };
-use crate::charset::encoding_trait::{begin_with_replacement_char, generate_encoding_err};
-use crate::charset::encoding_utf8::encoding_utf8_impl;
+use crate::charset::encoding_lazy_static::encoding_utf8_impl;
+use crate::charset::encoding_trait::{
+    begin_with_replacement_char, generate_encoding_err, EncodingTrait,
+};
 use crate::common::error::CustomError;
-use lazy_static::lazy_static;
 use logos::Source;
 use std::char::REPLACEMENT_CHARACTER;
-
-const REPLACEMENT_BYTES: [u8; 3] = [0xEF, 0xBF, 0xBD];
-
-lazy_static! {
-    pub static ref encoding_gbk_impl: EncodingGBK = EncodingGBK {
-        enc: encoding_rs::GBK,
-    };
-}
 
 pub struct EncodingGBK {
     pub enc: &'static encoding_rs::Encoding,
@@ -68,16 +61,15 @@ impl EncodingTrait for EncodingGBK {
         F: FnMut(&[u8], &[u8], bool) -> bool,
     {
         let mut buf: [u8; 4] = [0; 4];
-        let (mut i, mut w) = (0, 0);
+        let mut i = 0;
         while i < src.len() {
-            let mut data: Result<(usize, usize), CustomError> = Ok((0, 0));
-            if op & OP_FROM_UTF8 != 0 {
-                w = encoding_utf8_impl.peek(src).len();
-                data = self.gbk_encode(&mut buf, &src[i..i + w], false);
+            let (data, w) = if op & OP_FROM_UTF8 != 0 {
+                let w = encoding_utf8_impl.peek(&src[i..]).len();
+                (self.gbk_encode(&mut buf, &src[i..i + w], false), w)
             } else {
-                w = self.peek(src).len();
-                data = self.gbk_decode(&mut buf, &src[i..i + w], false);
-            }
+                let w = self.peek(&src[i..]).len();
+                (self.gbk_decode(&mut buf, &src[i..i + w], false), w)
+            };
             let (meet_err, n_dst) = match data {
                 Ok((n, _)) => (
                     op & OP_TO_UTF8 != 0 && begin_with_replacement_char(&buf[..n]),
@@ -117,7 +109,7 @@ impl EncodingTrait for EncodingGBK {
 
             if op & OP_COLLECT_FROM != 0 {
                 dest.extend_from_slice(from);
-            } else if op & OP_COLLECR_TO {
+            } else if op & OP_COLLECR_TO != 0 {
                 dest.extend_from_slice(to);
             }
 
@@ -126,15 +118,17 @@ impl EncodingTrait for EncodingGBK {
 
         self.foreach(&src, op, callback);
 
-        Ok(dest.to_vec())
-    }
+        let _ = err?;
 
-    fn to_lower(&self, src: &str) -> String {
-        to_lower_special(&GBK_CASE, src)
+        Ok(dest.to_vec())
     }
 
     fn to_upper(&self, src: &str) -> String {
         to_upper_special(&GBK_CASE, src)
+    }
+
+    fn to_lower(&self, src: &str) -> String {
+        to_lower_special(&GBK_CASE, src)
     }
 }
 

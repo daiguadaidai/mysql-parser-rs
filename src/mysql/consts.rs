@@ -1,4 +1,5 @@
 // PriorityEnum is defined for Priority const values.
+#[allow(dead_code)]
 #[derive(Debug, Default, Copy, Clone)]
 pub enum PriorityEnum {
     // Priority const values.

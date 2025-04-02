@@ -4,6 +4,7 @@ pub mod encoding_ascii;
 pub mod encoding_bin;
 pub mod encoding_gbk;
 pub mod encoding_latin1;
+mod encoding_lazy_static;
 mod encoding_table;
 pub mod encoding_trait;
 pub mod encoding_utf8;

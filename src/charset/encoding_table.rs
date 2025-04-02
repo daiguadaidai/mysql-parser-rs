@@ -12,10 +12,7 @@ const NAME_ISO_8859_6: &str = "iso-8859-6";
 const NAME_ISO_8859_7: &str = "iso-8859-7";
 const NAME_ISO_8859_8: &str = "iso-8859-8";
 const NAME_ISO_8859_8_I: &str = "iso-8859-8-i";
-const NAME_ISO_8859_9: &str = "iso-8859-9";
 const NAME_ISO_8859_10: &str = "iso-8859-10";
-const NAME_ISO_8859_11: &str = "iso-8859-11";
-const NAME_ISO_8859_12: &str = "iso-8859-12";
 const NAME_ISO_8859_13: &str = "iso-8859-13";
 const NAME_ISO_8859_14: &str = "iso-8859-14";
 const NAME_ISO_8859_15: &str = "iso-8859-15";
@@ -1579,6 +1576,7 @@ lazy_static! {
     };
 }
 
+#[allow(dead_code)]
 pub fn lookup(label: &str) -> Option<&'static EncodingName> {
     let key = label
         .trim_matches(&['\t', '\n', '\t', char::from(12), ' '])

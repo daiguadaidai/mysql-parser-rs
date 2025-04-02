@@ -5,16 +5,10 @@ use crate::charset::encoding::{
 };
 use crate::charset::encoding_trait::{generate_encoding_err, EncodingTrait};
 use crate::common::error::CustomError;
-use lazy_static::lazy_static;
-
-lazy_static! {
-    pub static ref encoding_utf8mb3_strict_impl: EncodingUtf8Mb3Strict = EncodingUtf8Mb3Strict {
-        enc: encoding_rs::UTF_8,
-    };
-}
 
 // encodingUTF8MB3Strict is the strict mode of EncodingUTF8MB3.
 // MB4 characters are considered invalid.
+#[allow(dead_code)]
 pub struct EncodingUtf8Mb3Strict {
     pub enc: &'static encoding_rs::Encoding,
 }
@@ -116,7 +110,7 @@ impl EncodingTrait for EncodingUtf8Mb3Strict {
 
             if op & OP_COLLECT_FROM != 0 {
                 dest.extend_from_slice(from);
-            } else if op & OP_COLLECR_TO {
+            } else if op & OP_COLLECR_TO != 0 {
                 dest.extend_from_slice(to);
             }
 

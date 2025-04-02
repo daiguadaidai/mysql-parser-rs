@@ -3,14 +3,8 @@ use crate::mysql::errcode;
 use crate::mysql::errname::mysql_err_name;
 use formatx::formatx;
 use lazy_static::lazy_static;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
-
-lazy_static! {
-    // ErrUnknownCollation is unknown collation.
-    // pub static ref err_unknown_collation: CustomError = terror::
-}
+use std::sync::{Arc, Mutex};
 
 // PadSpace is to mark that trailing spaces are insignificant in comparisons
 pub const PAD_SPACE: &str = "PAD SPACE";
@@ -19,11 +13,12 @@ pub const PAD_NONE: &str = "NO PAD";
 
 // Charset is a charset.
 // Now we only support MySQL.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Charset {
     pub name: String,
     pub default_collation: String,
-    pub collations: HashMap<String, Rc<RefCell<Collation>>>,
+    pub collations: HashMap<String, Arc<Mutex<Collation>>>,
     pub desc: String,
     pub maxlen: isize,
 }
@@ -34,7 +29,7 @@ impl Charset {
         maxlen: isize,
         default_collation: &str,
         desc: &str,
-        cs: HashMap<String, Rc<RefCell<Collation>>>,
+        cs: HashMap<String, Arc<Mutex<Collation>>>,
     ) -> Self {
         Charset {
             name: name.to_string(),
@@ -50,9 +45,9 @@ impl Charset {
         maxlen: isize,
         default_collation: &str,
         desc: &str,
-        cs: HashMap<String, Rc<RefCell<Collation>>>,
-    ) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new(
+        cs: HashMap<String, Arc<Mutex<Collation>>>,
+    ) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new(
             name,
             maxlen,
             default_collation,
@@ -64,6 +59,7 @@ impl Charset {
 
 // Collation is a collation.
 // Now we only support MySQL.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Collation {
     pub id: isize,
@@ -100,8 +96,8 @@ impl Collation {
         is_default: bool,
         sortlen: isize,
         pad_attribute: &str,
-    ) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::new(
+    ) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self::new(
             id,
             charset_name,
             name,
@@ -123,11 +119,11 @@ fn utf8_alias(csname: &str) -> String {
 pub fn get_collation_by_name(name: &str) -> Result<Collation, CustomError> {
     let csname: String = utf8_alias(&name.to_uppercase());
     let msg = mysql_err_name.get(&errcode::ERR_UNKNOWN_COLLATION).unwrap();
-    let msg = formatx!(&msg.raw, name).unwrap();
+    let msg = formatx!(&msg.raw, name)?;
 
     match collations_name_map.get(&csname) {
         None => Err(CustomError::Normal(msg)),
-        Some(c) => Ok(c.borrow().clone()),
+        Some(c) => Ok(c.lock().unwrap().clone()),
     }
 }
 
@@ -144,6 +140,7 @@ pub const COLLATION_LATIN1: &str = "latin1_bin";
 // CollationGBKBin is the default collation for CharsetGBK when new collation is disabled.
 pub const COLLATION_GBK_BIN: &str = "gbk_bin";
 // CollationGBKChineseCI is the default collation for CharsetGBK when new collation is enabled.
+#[allow(dead_code)]
 pub const COLLATION_GBK_CHINESE_CI: &str = "gbk_chinese_ci";
 
 // CharsetASCII is a subset of UTF8.
@@ -219,9 +216,8 @@ lazy_static! {
 
         s
     };
-
-    pub static ref collations: Vec<Rc<RefCell<Collation>>> = {
-        let mut c = Vec::<Rc<RefCell<Collation>>>::new();
+    pub static ref collations: Vec<Arc<Mutex<Collation>>> = {
+        let mut c = Vec::<Arc<Mutex<Collation>>>::new();
         c.push(Collation::new_ref(
             1,
             "big5",
@@ -710,7 +706,9 @@ lazy_static! {
             1,
             PAD_SPACE,
         ));
-        c.push(Collation::new_ref(63, "binary", "binary", true, 1, PAD_NONE));
+        c.push(Collation::new_ref(
+            63, "binary", "binary", true, 1, PAD_NONE,
+        ));
         c.push(Collation::new_ref(
             64,
             "armscii8",
@@ -719,7 +717,14 @@ lazy_static! {
             1,
             PAD_SPACE,
         ));
-        c.push(Collation::new_ref(65, "ascii", "ascii_bin", true, 1, PAD_SPACE));
+        c.push(Collation::new_ref(
+            65,
+            "ascii",
+            "ascii_bin",
+            true,
+            1,
+            PAD_SPACE,
+        ));
         c.push(Collation::new_ref(
             66,
             "cp1250",
@@ -744,7 +749,9 @@ lazy_static! {
             1,
             PAD_SPACE,
         ));
-        c.push(Collation::new_ref(69, "dec8", "dec8_bin", false, 1, PAD_SPACE));
+        c.push(Collation::new_ref(
+            69, "dec8", "dec8_bin", false, 1, PAD_SPACE,
+        ));
         c.push(Collation::new_ref(
             70,
             "greek",
@@ -761,7 +768,9 @@ lazy_static! {
             1,
             PAD_SPACE,
         ));
-        c.push(Collation::new_ref(72, "hp8", "hp8_bin", false, 1, PAD_SPACE));
+        c.push(Collation::new_ref(
+            72, "hp8", "hp8_bin", false, 1, PAD_SPACE,
+        ));
         c.push(Collation::new_ref(
             73,
             "keybcs2",
@@ -834,9 +843,15 @@ lazy_static! {
             1,
             PAD_SPACE,
         ));
-        c.push(Collation::new_ref(82, "swe7", "swe7_bin", false, 1, PAD_SPACE));
-        c.push(Collation::new_ref(83, "utf8", "utf8_bin", true, 1, PAD_SPACE));
-        c.push(Collation::new_ref(84, "big5", "big5_bin", false, 1, PAD_SPACE));
+        c.push(Collation::new_ref(
+            82, "swe7", "swe7_bin", false, 1, PAD_SPACE,
+        ));
+        c.push(Collation::new_ref(
+            83, "utf8", "utf8_bin", true, 1, PAD_SPACE,
+        ));
+        c.push(Collation::new_ref(
+            84, "big5", "big5_bin", false, 1, PAD_SPACE,
+        ));
         c.push(Collation::new_ref(
             85,
             "euckr",
@@ -854,7 +869,9 @@ lazy_static! {
             PAD_SPACE,
         ));
         c.push(Collation::new_ref(87, "gbk", "gbk_bin", true, 1, PAD_SPACE));
-        c.push(Collation::new_ref(88, "sjis", "sjis_bin", false, 1, PAD_SPACE));
+        c.push(Collation::new_ref(
+            88, "sjis", "sjis_bin", false, 1, PAD_SPACE,
+        ));
         c.push(Collation::new_ref(
             89,
             "tis620",
@@ -863,8 +880,12 @@ lazy_static! {
             1,
             PAD_SPACE,
         ));
-        c.push(Collation::new_ref(90, "ucs2", "ucs2_bin", false, 1, PAD_SPACE));
-        c.push(Collation::new_ref(91, "ujis", "ujis_bin", false, 1, PAD_SPACE));
+        c.push(Collation::new_ref(
+            90, "ucs2", "ucs2_bin", false, 1, PAD_SPACE,
+        ));
+        c.push(Collation::new_ref(
+            91, "ujis", "ujis_bin", false, 1, PAD_SPACE,
+        ));
         c.push(Collation::new_ref(
             92,
             "geostd8",
@@ -2332,9 +2353,8 @@ lazy_static! {
 
         c
     };
-
-    pub static ref character_set_infos: HashMap<String, Rc<RefCell<Charset>>> = {
-        let mut m = HashMap::<String, Rc<RefCell<Charset>>>::new();
+    pub static ref character_set_infos: HashMap<String, Arc<Mutex<Charset>>> = {
+        let mut m = HashMap::<String, Arc<Mutex<Charset>>>::new();
         m.insert(
             CHARSET_UTF8.to_string(),
             Charset::new_ref(
@@ -2391,19 +2411,22 @@ lazy_static! {
         );
 
         for c in collations.iter() {
-            if let Some(charset) = m.get(&c.borrow().charset_name) {
-                charset.borrow_mut().collations.insert(c.borrow().name.clone(), c.clone());
+            if let Some(charset) = m.get(&c.lock().unwrap().charset_name) {
+                charset
+                    .lock()
+                    .unwrap()
+                    .collations
+                    .insert(c.lock().unwrap().name.clone(), c.clone());
             }
-        };
+        }
 
         m
     };
-
-    pub static ref charsets: HashMap<String, Rc<RefCell<Charset>>> = {
-        let mut m = HashMap::<String, Rc<RefCell<Charset>>>::new();
+    pub static ref charsets: HashMap<String, Arc<Mutex<Charset>>> = {
+        let mut m = HashMap::<String, Arc<Mutex<Charset>>>::new();
         m.insert(
             CHARSET_ARMSCII8.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_ARMSCII8,
                 1,
                 "armscii8_general_ci",
@@ -2413,7 +2436,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_ASCII.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_ASCII,
                 1,
                 "ascii_general_ci",
@@ -2423,7 +2446,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_BIG5.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_BIG5,
                 2,
                 "big5_chinese_ci",
@@ -2433,7 +2456,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_BIN.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_BIN,
                 1,
                 "binary",
@@ -2443,7 +2466,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_LATIN1.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_LATIN1,
                 1,
                 "cp1250_general_ci",
@@ -2453,7 +2476,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP1250.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP1250,
                 1,
                 "cp1251_general_ci",
@@ -2463,7 +2486,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP1251.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP1251,
                 1,
                 "cp1256_general_ci",
@@ -2473,7 +2496,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP1256.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP1256,
                 1,
                 "cp1257_general_ci",
@@ -2483,7 +2506,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP1257.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP1257,
                 1,
                 "cp850_general_ci",
@@ -2493,7 +2516,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP850.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP850,
                 1,
                 "cp852_general_ci",
@@ -2503,7 +2526,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP852.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP852,
                 1,
                 "cp866_general_ci",
@@ -2513,7 +2536,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP866.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP866,
                 1,
                 "cp932_japanese_ci",
@@ -2523,7 +2546,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_CP932.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_CP932,
                 2,
                 "dec8_swedish_ci",
@@ -2533,7 +2556,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_DEC8.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_DEC8,
                 1,
                 "eucjpms_japanese_ci",
@@ -2543,7 +2566,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_EUCJPMS.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_EUCJPMS,
                 3,
                 "euckr_korean_ci",
@@ -2553,7 +2576,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_EUCKR.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_EUCKR,
                 2,
                 "gb18030_chinese_ci",
@@ -2563,7 +2586,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_GB18030.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_GB18030,
                 4,
                 "gb2312_chinese_ci",
@@ -2573,7 +2596,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_GB2312.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_GB2312,
                 2,
                 "gbk_chinese_ci",
@@ -2583,7 +2606,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_GBK.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_GBK,
                 2,
                 "geostd8_general_ci",
@@ -2593,7 +2616,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_GEOSTD8.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_GEOSTD8,
                 1,
                 "greek_general_ci",
@@ -2603,7 +2626,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_GREEK.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_GREEK,
                 1,
                 "hebrew_general_ci",
@@ -2613,7 +2636,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_HEBREW.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_HEBREW,
                 1,
                 "hp8_english_ci",
@@ -2623,7 +2646,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_HP8.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_HP8,
                 1,
                 "keybcs2_general_ci",
@@ -2633,7 +2656,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_KEYBCS2.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_KEYBCS2,
                 1,
                 "koi8r_general_ci",
@@ -2643,7 +2666,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_KOI8_R.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_KOI8_R,
                 1,
                 "koi8u_general_ci",
@@ -2653,7 +2676,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_KOI8_U.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_KOI8_U,
                 1,
                 "latin1_swedish_ci",
@@ -2663,7 +2686,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_LATIN2.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_LATIN2,
                 1,
                 "latin2_general_ci",
@@ -2673,7 +2696,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_LATIN5.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_LATIN5,
                 1,
                 "latin5_turkish_ci",
@@ -2683,7 +2706,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_LATIN7.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_LATIN7,
                 1,
                 "latin7_general_ci",
@@ -2693,7 +2716,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_MAC_CE.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_MAC_CE,
                 1,
                 "macce_general_ci",
@@ -2703,7 +2726,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_MAC_ROMAN.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_MAC_ROMAN,
                 1,
                 "macroman_general_ci",
@@ -2713,7 +2736,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_SJIS.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_SJIS,
                 2,
                 "sjis_japanese_ci",
@@ -2723,7 +2746,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_SWE7.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_SWE7,
                 1,
                 "swe7_swedish_ci",
@@ -2733,7 +2756,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_TIS620.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_TIS620,
                 1,
                 "tis620_thai_ci",
@@ -2743,7 +2766,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UCS2.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UCS2,
                 2,
                 "ucs2_general_ci",
@@ -2753,7 +2776,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UJIS.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UJIS,
                 3,
                 "ujis_japanese_ci",
@@ -2763,7 +2786,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UTF16.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UTF16,
                 4,
                 "utf16_general_ci",
@@ -2773,7 +2796,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UTF16_LE.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UTF16_LE,
                 4,
                 "utf16le_general_ci",
@@ -2783,7 +2806,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UTF32.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UTF32,
                 4,
                 "utf32_general_ci",
@@ -2793,7 +2816,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UTF8.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UTF8,
                 3,
                 "utf8_general_ci",
@@ -2803,7 +2826,7 @@ lazy_static! {
         );
         m.insert(
             CHARSET_UTF8MB4.to_string(),
-            Charset::new_ref (
+            Charset::new_ref(
                 CHARSET_UTF8MB4,
                 4,
                 "utf8mb4_0900_ai_ci",
@@ -2813,36 +2836,40 @@ lazy_static! {
         );
 
         for c in collations.iter() {
-            if let Some(charset) = m.get(&c.borrow().charset_name) {
-                charset.borrow_mut().collations.insert(c.borrow().name.clone(), c.clone());
+            if let Some(charset) = m.get(&c.lock().unwrap().charset_name) {
+                charset
+                    .lock()
+                    .unwrap()
+                    .collations
+                    .insert(c.lock().unwrap().name.clone(), c.clone());
             }
-        };
+        }
 
         m
     };
-
-    pub static ref collations_id_map: HashMap<isize, Rc<RefCell<Collation>>> = {
-        let mut m: = HashMap::<isize,Rc<RefCell<Collation>>>::new();
+    pub static ref collations_id_map: HashMap<isize, Arc<Mutex<Collation>>> = {
+        let mut m = HashMap::<isize, Arc<Mutex<Collation>>>::new();
         for c in collations.iter() {
-            m.insert(c.borrow().id, c.clone());
-        };
+            m.insert(c.lock().unwrap().id, c.clone());
+        }
 
         m
     };
-
-    pub static ref collations_name_map: HashMap<String, Rc<RefCell<Collation>>> = {
-        let mut m: = HashMap::<String,Rc<RefCell<Collation>>>::new();
+    pub static ref collations_name_map: HashMap<String, Arc<Mutex<Collation>>> = {
+        let mut m = HashMap::<String, Arc<Mutex<Collation>>>::new();
         for c in collations.iter() {
-            m.insert(c.borrow().name.clone(), c.clone());
-        };
+            m.insert(c.lock().unwrap().name.clone(), c.clone());
+        }
 
         m
     };
-
-    pub static ref supported_collations: Vec<Rc<RefCell<Collation>>> = {
-        let mut v = Vec::<Rc<RefCell<Collation>>>::new();
+    pub static ref supported_collations: Vec<Arc<Mutex<Collation>>> = {
+        let mut v = Vec::<Arc<Mutex<Collation>>>::new();
         for c in collations.iter() {
-            if supported_collation_names.get(&c.borrow().name).is_some() {
+            if supported_collation_names
+                .get(&c.lock().unwrap().name)
+                .is_some()
+            {
                 v.push(c.clone());
             }
         }
