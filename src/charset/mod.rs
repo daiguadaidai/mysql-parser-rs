@@ -6,6 +6,7 @@ pub mod encoding_gbk;
 pub mod encoding_latin1;
 mod encoding_lazy_static;
 mod encoding_table;
+mod encoding_test;
 pub mod encoding_trait;
 pub mod encoding_utf8;
 pub mod encoding_utf8mb3_strict;

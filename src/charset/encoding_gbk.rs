@@ -143,10 +143,6 @@ impl EncodingGBK {
             return Ok((0, 0));
         }
 
-        if src.is_empty() {
-            return Ok((0, 0));
-        }
-
         // 处理特定情况：如果第一个字节是 0x80，返回替换字符
         if src[0] == 0x80 {
             let encoded = REPLACEMENT_CHARACTER.encode_utf8(dest);
