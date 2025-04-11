@@ -1,11 +1,11 @@
 use crate::ast::ci_str::CIStr;
 use crate::ast::frame_clause::FrameClause;
-use crate::ast::group_by_clause::ByItem;
 use crate::ast::order_by_clause::OrderByClause;
+use crate::ast::partition_by_clause::PartitionByClause;
 use derive_visitor::Drive;
 
 // WindowSpec is the specification of a window.
-#[derive(Debug, Drive)]
+#[derive(Debug, Drive, Default)]
 pub struct WindowSpec {
     #[drive(skip)]
     pub name: CIStr,
@@ -14,7 +14,7 @@ pub struct WindowSpec {
     #[drive(skip)]
     pub references: CIStr,
 
-    pub partition_by: Vec<ByItem>,
+    pub partition_by: Option<PartitionByClause>,
     pub order_by: Option<OrderByClause>,
     pub frame: Option<FrameClause>,
 

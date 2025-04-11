@@ -23,7 +23,7 @@ use nom::sequence::terminated;
 use nom::Offset;
 use nom::Slice;
 use pratt::{PrattError, PrattParser, Precedence};
-use std::num::ParseIntError;
+use std::num::{ParseFloatError, ParseIntError};
 
 pub type IResult<'a, Output> = nom::IResult<Input<'a>, Output, Error<'a>>;
 
@@ -366,4 +366,8 @@ pub fn get_i64_form_num(num: &str) -> Result<i64, ParseIntError> {
 
 pub fn get_isize_form_num(num: &str) -> isize {
     num.parse::<isize>().unwrap_or_else(|_| 0)
+}
+
+pub fn get_f64_form_num(num: &str) -> Result<f64, ParseFloatError> {
+    num.parse::<f64>()
 }

@@ -2,26 +2,34 @@ use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
     BinaryOperationExpr, ExprNode, FuncCallExpr, FuncCallExprType, GetFormatSelectorExpr,
-    MatchAgainst, SetCollationExpr, TableNameExpr, TimeUnitExpr, TrimDirectionExpr,
-    UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr, WindowFuncExpr,
+    MatchAgainst, ParamMarkerExpr, PositionExpr, SetCollationExpr, TableNameExpr, TimeUnitExpr,
+    TrimDirectionExpr, UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr, WindowFuncExpr,
 };
+use crate::ast::frame_clause::{BoundType, FrameBound, FrameClause, FrameExtent, FrameType};
 use crate::ast::functions;
 use crate::ast::functions::TimeUnitType;
 use crate::ast::group_by_clause::ByItem;
 use crate::ast::op_code::OpCode;
+use crate::ast::order_by_clause::OrderByClause;
 use crate::ast::partition_by_clause::PartitionByClause;
 use crate::ast::window_spec::WindowSpec;
 use crate::common::misc::is_in_token_map;
 use crate::parser::common::*;
 use crate::parser::input::Input;
+use crate::parser::statements::column_name::{column_name_list, simple_ident};
 use crate::parser::statements::common::{
-    collation_name, column_name_list, field_len, fulltext_search_modifier_opt, func_datetime_prec,
-    func_datetime_prec_list_opt, function_name_conflict, function_name_date_arith,
-    function_name_date_arith_multi_forms, function_name_datetime_precision,
-    function_name_optional_braces, get_format_selector, log_and, log_or, optional_braces,
-    signed_num, simple_ident, string_lit, table_name, time_unit, timestamp_unit,
-    timestamp_unit_sql_tsi, trim_direction,
+    collation_name, field_len, fulltext_search_modifier_opt, func_datetime_prec,
+    func_datetime_prec_list_opt, log_and, log_or, opt_from_first_last, opt_null_treatment,
+    optional_braces, string_lit, table_name, time_unit,
 };
+use crate::parser::statements::keywords::{
+    function_name_conflict, function_name_date_arith, function_name_date_arith_multi_forms,
+    function_name_datetime_precision, function_name_optional_braces, get_format_selector,
+    timestamp_unit, timestamp_unit_sql_tsi, trim_direction,
+};
+use crate::parser::statements::literal::literal;
+use crate::parser::statements::num_literal::{num_literal, signed_num};
+use crate::parser::statements::vairable::vairable;
 use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
 use nom::combinator::map;
@@ -245,6 +253,22 @@ pub fn simple_expr_sub_1(i: Input) -> IResult<ExprNode> {
                 })
             },
         ),
+        map(rule!(#window_func_call), |(expr)| {
+            ExprNode::WindowFuncExpr(expr)
+        }),
+        map(rule!(#literal), |(expr)| expr),
+        map(rule!("?"), |(t)| {
+            ExprNode::ParamMarkerExpr(ParamMarkerExpr {
+                offset: 0,
+                order: 0,
+                in_execute: false,
+                value_expr: None,
+                token_index: t.pos,
+                start_pos: t.span.start as usize,
+                end_pos: t.span.end as usize,
+            })
+        }),
+        map(rule!(#vairable), |(expr)| expr),
     ))(i)
 }
 
@@ -303,6 +327,7 @@ pub fn function_call_keyword(i: Input) -> IResult<ExprNode> {
             rule!(#function_name_datetime_precision ~ #func_datetime_prec),
             |(fn_name, value_expr)| {
                 let mut args = Vec::with_capacity(1);
+
                 if let Some(v) = value_expr {
                     args.push(ExprNode::ValueExpr(v));
                 }
@@ -761,11 +786,168 @@ pub fn function_call_generic(i: Input) -> IResult<FuncCallExpr> {
     ))(i)
 }
 
-pub fn window_func_call(i: Input) -> IResult<WindowFuncExpr> {}
+pub fn window_func_call(i: Input) -> IResult<WindowFuncExpr> {
+    alt((
+        map(
+            rule!(ROW_NUMBER ~ "(" ~ ")" ~ #windowing_clause),
+            |(t, _, _, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.spec = Some(spec);
 
-pub fn windowing_clause(i: Input) -> IResult<WindowSpec> {}
+                expr
+            },
+        ),
+        map(
+            rule!(RANK ~ "(" ~ ")" ~ #windowing_clause),
+            |(t, _, _, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.spec = Some(spec);
 
-pub fn window_name_or_spec(i: Input) -> IResult<WindowSpec> {}
+                expr
+            },
+        ),
+        map(
+            rule!(DENSE_RANK ~ "(" ~ ")" ~ #windowing_clause),
+            |(t, _, _, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(CUME_DIST ~ "(" ~ ")" ~ #windowing_clause),
+            |(t, _, _, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(PERCENT_RANK ~ "(" ~ ")" ~ #windowing_clause),
+            |(t, _, _, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(NTILE ~ "(" ~ #simple_expr ~ ")" ~ #windowing_clause),
+            |(t, _, e, _, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.args = vec![e];
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(LEAD ~ "(" ~ #expression ~ #opt_lead_lag_info ~ ")" ~ #opt_null_treatment ~ #windowing_clause),
+            |(t, _, e, infos, _, treatment, spec)| {
+                let name = t.text();
+                let mut args = vec![e];
+                if infos.len() > 0 {
+                    args.extend(infos);
+                }
+
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.args = args;
+                expr.ignore_null = treatment;
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(LAG ~ "(" ~ #expression ~ #opt_lead_lag_info ~ ")" ~ #opt_null_treatment ~ #windowing_clause),
+            |(t, _, e, infos, _, treatment, spec)| {
+                let name = t.text();
+                let mut args = vec![e];
+                if infos.len() > 0 {
+                    args.extend(infos);
+                }
+
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.args = args;
+                expr.ignore_null = treatment;
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(FIRST_VALUE ~ "(" ~ #expression ~ ")" ~ #opt_null_treatment ~ #windowing_clause),
+            |(t, _, e, _, treatment, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.args = vec![e];
+                expr.ignore_null = treatment;
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(LAST_VALUE ~ "(" ~ #expression ~ ")" ~ #opt_null_treatment ~ #windowing_clause),
+            |(t, _, e, _, treatment, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.args = vec![e];
+                expr.ignore_null = treatment;
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+        map(
+            rule!(LAG ~ "(" ~ #expression ~ "," ~ #simple_expr ~ ")" ~ #opt_from_first_last ~ #opt_null_treatment ~ #windowing_clause),
+            |(t, _, e, _, s_expr, _, from_last, treatment, spec)| {
+                let name = t.text();
+                let mut expr = WindowFuncExpr::default();
+                expr.name = name.to_string();
+                expr.args = vec![e, s_expr];
+                expr.from_last = from_last;
+                expr.ignore_null = treatment;
+                expr.spec = Some(spec);
+
+                expr
+            },
+        ),
+    ))(i)
+}
+
+pub fn windowing_clause(i: Input) -> IResult<WindowSpec> {
+    map(rule!(OVER ~ #window_name_or_spec), |(_, spec)| spec)(i)
+}
+
+pub fn window_name_or_spec(i: Input) -> IResult<WindowSpec> {
+    alt((
+        map(rule!(#window_name), |(name)| {
+            let mut spec = WindowSpec::default();
+            spec.name = name;
+            spec
+        }),
+        map(rule!(#window_spec), |spec| spec),
+    ))(i)
+}
 pub fn window_name(i: Input) -> IResult<CIStr> {
     map(rule!(Ident), |(t)| {
         let s = t.get_trim_start_end_text('`');
@@ -773,9 +955,27 @@ pub fn window_name(i: Input) -> IResult<CIStr> {
     })
 }
 
-pub fn window_spec(i: Input) -> IResult<WindowSpec> {}
+pub fn window_spec(i: Input) -> IResult<WindowSpec> {
+    map(rule!("(" ~ #window_spec_details ~ ")"), |(_, spec, _)| spec)(i)
+}
 
-pub fn window_spec_details(i: Input) -> IResult<WindowSpec> {}
+pub fn window_spec_details(i: Input) -> IResult<WindowSpec> {
+    map(
+        rule!(#opt_existing_window_name ~ #opt_partition_clause? ~ #opt_window_order_by_clause? ~ #opt_window_frame_clause?),
+        |(name, partition_clause, order_by_clause, frame_clause)| {
+            let mut spec = WindowSpec {
+                name: CIStr::default(),
+                references: name,
+                partition_by: partition_clause,
+                order_by: order_by_clause,
+                frame: frame_clause,
+                only_alias: false,
+            };
+
+            spec
+        },
+    )(i)
+}
 
 pub fn opt_existing_window_name(i: Input) -> IResult<CIStr> {
     map(rule!(#window_name?), |(name)| {
@@ -784,7 +984,9 @@ pub fn opt_existing_window_name(i: Input) -> IResult<CIStr> {
 }
 
 pub fn opt_partition_clause(i: Input) -> IResult<PartitionByClause> {
-    map(rule!(PARTITION ~ BY ~ #by_list), |(items)|)
+    map(rule!(PARTITION ~ BY ~ #by_list), |(_, _, items)| {
+        PartitionByClause { items }
+    })
 }
 
 pub fn by_list(i: Input) -> IResult<Vec<ByItem>> {
@@ -792,22 +994,228 @@ pub fn by_list(i: Input) -> IResult<Vec<ByItem>> {
 }
 
 pub fn by_item(i: Input) -> IResult<ByItem> {
-    alt(map(rule!(#expression), |(expr)| {
-        if let ExprNode::ValueExpr(value_expr) = expr {
-            if let Some(position) = value_expr.get_value_i64() {
-                expr =
-            }
-        }
+    alt((
+        map(rule!(#expression), |(expr)| {
+            let new_expr = if let ExprNode::ValueExpr(value_expr) = expr {
+                if let Some(position) = value_expr.get_value_i64() {
+                    ExprNode::PositionExpr(PositionExpr {
+                        n: position as isize,
+                        p: None,
+                    })
+                } else {
+                    expr
+                }
+            } else {
+                expr
+            };
 
-        ByItem{expr, null_order: true}
-    }), map(rule!(#expression ~ #order), |(expr, o)|))(i)
+            ByItem {
+                expr: Some(Box::new(new_expr)),
+                desc: false,
+                null_order: true,
+            }
+        }),
+        map(rule!(#expression ~ #order), |(expr, desc)| {
+            let new_expr = if let ExprNode::ValueExpr(value_expr) = expr {
+                if let Some(position) = value_expr.get_value_i64() {
+                    ExprNode::PositionExpr(PositionExpr {
+                        n: position as isize,
+                        p: None,
+                    })
+                } else {
+                    expr
+                }
+            } else {
+                expr
+            };
+
+            ByItem {
+                expr: Some(Box::new(new_expr)),
+                desc,
+                null_order: false,
+            }
+        }),
+    ))(i)
 }
 
-
-pub fn order(i:Input) -> IResult<bool> {
+pub fn order(i: Input) -> IResult<bool> {
     alt((map(rule!(ASC), |_| false), map(rule!(DESC), |_| true)))(i)
 }
 
 pub fn opt_order(i: Input) -> IResult<bool> {
-    map(rule!(#order?), |(b)| b.unwrap_or_else(||false))(i)
+    map(rule!(#order?), |(b)| b.unwrap_or_else(|| false))(i)
+}
+
+pub fn opt_window_order_by_clause(i: Input) -> IResult<OrderByClause> {
+    map(rule!(ORDER ~ BY ~ #by_list), |(_, _, items)| {
+        OrderByClause {
+            items,
+            for_union: false,
+        }
+    })
+}
+
+pub fn opt_window_frame_clause(i: Input) -> IResult<FrameClause> {
+    map(
+        rule!(#window_frame_units ~ #window_frame_extent),
+        |(tp, items)| FrameClause {
+            tp,
+            extent: Some(items),
+        },
+    )
+}
+
+pub fn window_frame_units(i: Input) -> IResult<FrameType> {
+    alt((
+        map(rule!(ROWS), |_| FrameType::Rows),
+        map(rule!(RANGE), |_| FrameType::Ranges),
+        map(rule!(GROUPS), |_| FrameType::Groups),
+    ))(i)
+}
+
+pub fn window_frame_extent(i: Input) -> IResult<FrameExtent> {
+    alt((
+        map(rule!(#window_frame_start), |(frame)| FrameExtent {
+            start: Some(frame),
+            end: Some(FrameBound {
+                tp: BoundType::CurrentRow,
+                un_bounded: false,
+                expr: None,
+                unit: TimeUnitType::TimeUnitInvalid,
+            }),
+        }),
+        map(rule!(#window_frame_between), |(extent)| extent),
+    ))(i)
+}
+
+pub fn window_frame_start(i: Input) -> IResult<FrameBound> {
+    alt((
+        map(rule!(UNBOUNDED ~ PRECEDING), |_| FrameBound {
+            tp: BoundType::Preceding,
+            un_bounded: true,
+            expr: None,
+            unit: TimeUnitType::TimeUnitInvalid,
+        }),
+        map(rule!(#num_literal ~ PRECEDING), |(value_expr, _)| {
+            FrameBound {
+                tp: BoundType::Preceding,
+                un_bounded: false,
+                expr: Some(Box::new(ExprNode::ValueExpr(value_expr))),
+                unit: TimeUnitType::TimeUnitInvalid,
+            }
+        }),
+        map(rule!("?" ~ PRECEDING), |(t, _)| FrameBound {
+            tp: BoundType::Preceding,
+            un_bounded: false,
+            expr: Some(Box::new(ExprNode::ParamMarkerExpr(ParamMarkerExpr {
+                offset: 0,
+                order: 0,
+                in_execute: false,
+                value_expr: None,
+                token_index: t.pos,
+                start_pos: t.span.start as usize,
+                end_pos: t.span.end as usize,
+            }))),
+            unit: TimeUnitType::TimeUnitInvalid,
+        }),
+        map(
+            rule!(INTERVAL ~ #expression ~ #time_unit ~ PRECEDING),
+            |(_, expr, tu, _)| FrameBound {
+                tp: BoundType::Preceding,
+                un_bounded: false,
+                expr: Some(Box::new(expr)),
+                unit: tu,
+            },
+        ),
+        map(rule!(CURRENT ~ ROW), |(_, _)| FrameBound {
+            tp: BoundType::CurrentRow,
+            un_bounded: false,
+            expr: None,
+            unit: TimeUnitType::TimeUnitInvalid,
+        }),
+    ))(i)
+}
+
+pub fn window_frame_between(i: Input) -> IResult<FrameExtent> {
+    map(
+        rule!(BETWEEN ~ #window_frame_bound ~ AND ~ #window_frame_bound),
+        |(_, start, _, end)| FrameExtent {
+            start: Some(start),
+            end: Some(end),
+        },
+    )(i)
+}
+
+pub fn window_frame_bound(i: Input) -> IResult<FrameBound> {
+    alt((
+        map(rule!(#window_frame_start), |(bound)| bound),
+        map(rule!(UNBOUNDED ~ FOLLOWING), |(_, _)| FrameBound {
+            tp: BoundType::Following,
+            un_bounded: true,
+            expr: None,
+            unit: TimeUnitType::TimeUnitInvalid,
+        }),
+        map(rule!(#num_literal ~ FOLLOWING), |(num, _)| FrameBound {
+            tp: BoundType::Following,
+            un_bounded: false,
+            expr: Some(Box::new(ExprNode::ValueExpr(num))),
+            unit: TimeUnitType::TimeUnitInvalid,
+        }),
+        map(rule!("?" ~ FOLLOWING), |(t, _)| FrameBound {
+            tp: BoundType::Following,
+            un_bounded: false,
+            expr: Some(Box::new(ExprNode::ParamMarkerExpr(ParamMarkerExpr {
+                offset: 0,
+                order: 0,
+                in_execute: false,
+                value_expr: None,
+                token_index: t.pos,
+                start_pos: t.span.start as usize,
+                end_pos: t.span.end as usize,
+            }))),
+            unit: TimeUnitType::TimeUnitInvalid,
+        }),
+        map(
+            rule!(INTERVAL ~ #expression ~ #time_unit ~ FOLLOWING),
+            |(_, expr, tu, _)| FrameBound {
+                tp: BoundType::Following,
+                un_bounded: false,
+                expr: Some(Box::new(expr)),
+                unit: tu,
+            },
+        ),
+    ))(i)
+}
+pub fn opt_lead_lag_info(i: Input) -> IResult<Vec<ExprNode>> {
+    alt((
+        map(
+            rule!("," ~ #num_literal ~ #opt_ll_default?),
+            |(_, value_expr, expr)| {
+                let mut args = vec![ExprNode::ValueExpr(value_expr)];
+                if let Some(expr) = expr {
+                    args.push(expr);
+                }
+
+                args
+            },
+        ),
+        map(rule!("," ~ "?" ~ #opt_ll_default), |(_, t, expr)| {
+            let mut mark_expr = ParamMarkerExpr::default();
+            mark_expr.token_index = t.pos;
+            mark_expr.start_pos = t.span.start as usize;
+            mark_expr.end_pos = t.span.end as usize;
+            let marker_expr = ExprNode::ParamMarkerExpr(mark_expr);
+
+            let mut args = vec![marker_expr];
+            if let Some(expr) = expr {
+                args.push(expr);
+            }
+
+            args
+        }),
+    ))(i)
+}
+
+pub fn opt_ll_default(i: Input) -> IResult<ExprNode> {
+    map(rule!("," ~ #expression), |(_, expr)| expr)
 }

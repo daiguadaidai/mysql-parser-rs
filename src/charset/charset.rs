@@ -108,6 +108,44 @@ impl Collation {
     }
 }
 
+// GetDefaultCollationLegacy is compatible with the charset support in old version parser.
+pub fn get_default_collation_legacy(charset_str: &str) -> Result<String, CustomError> {
+    match charset_str.to_lowercase().as_str() {
+        CHARSET_UTF8MB3 => get_default_collation(CHARSET_UTF8),
+        CHARSET_UTF8 | CHARSET_UTF8MB4 | CHARSET_ASCII | CHARSET_LATIN1 | CHARSET_BIN => {
+            get_default_collation(charset_str)
+        }
+        _ => Err(CustomError::Normal(format!("CHARSET_UTF8{}", charset_str))),
+    }
+}
+
+// GetDefaultCollation returns the default collation for charset.
+pub fn get_default_collation(charset_str: &str) -> Result<String, CustomError> {
+    let cs = get_charset_info(charset_str)?;
+
+    Ok(cs.default_collation.clone())
+}
+
+// GetCharsetInfo returns charset and collation for cs as name.
+pub fn get_charset_info(cs: &str) -> Result<Charset, CustomError> {
+    let cs = if cs.to_uppercase() == CHARSET_UTF8MB3 {
+        CHARSET_UTF8
+    } else {
+        cs
+    };
+    let cs_lower = cs.to_lowercase();
+
+    if let Some(c) = character_set_infos.get(&cs_lower) {
+        return Ok(c.lock().unwrap().clone());
+    }
+
+    if let Some(c) = charsets.get(&cs_lower) {
+        return Err(CustomError::Normal(format!("Unsupported charset {}", cs)));
+    }
+
+    Err(CustomError::Normal(format!("Unknown charset {}", cs)))
+}
+
 fn utf8_alias(csname: &str) -> String {
     match csname {
         "utf8mb3_bin" => "utf8_bin".to_string(),

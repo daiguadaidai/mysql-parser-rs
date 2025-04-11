@@ -35,6 +35,8 @@ pub enum ExprNode {
     TableNameExpr(TableNameExpr),
     SetCollationExpr(SetCollationExpr),
     WindowFuncExpr(WindowFuncExpr),
+    PositionExpr(PositionExpr),
+    ParamMarkerExpr(ParamMarkerExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -223,7 +225,7 @@ pub struct SetCollationExpr {
 }
 
 // WindowFuncExpr represents window function expression.
-#[derive(Debug, Drive)]
+#[derive(Debug, Drive, Default)]
 pub struct WindowFuncExpr {
     // Name is the function name.
     #[drive(skip)]
@@ -249,10 +251,28 @@ pub struct WindowFuncExpr {
 // PositionExpr is the expression for order by and group by position.
 // MySQL use position expression started from 1, it looks a little confused inner.
 // maybe later we will use 0 at first.
-pub struct  PositionExpr  {
-    exprNode
+#[derive(Debug, Drive, Default)]
+pub struct PositionExpr {
     // N is the position, started from 1 now.
+    #[drive(skip)]
     pub n: isize,
     // P is the parameterized position.
-    pub p: Option<Box<ExprNode>>
+    pub p: Option<Box<ExprNode>>,
+}
+
+#[derive(Debug, Drive, Default)]
+pub struct ParamMarkerExpr {
+    #[drive(skip)]
+    pub offset: isize,
+    #[drive(skip)]
+    pub order: isize,
+    #[drive(skip)]
+    pub in_execute: bool,
+    pub value_expr: Option<Box<ExprNode>>,
+    #[drive(skip)]
+    pub token_index: usize,
+    #[drive(skip)]
+    pub start_pos: usize,
+    #[drive(skip)]
+    pub end_pos: usize,
 }

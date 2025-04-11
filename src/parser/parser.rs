@@ -9,7 +9,12 @@ use crate::parser::token_kind::TokenKind;
 use std::string::ToString;
 
 pub fn tokenize_sql(sql: &str) -> Result<Vec<Token>> {
-    Tokenizer::new(sql).collect::<Result<Vec<_>>>()
+    let mut tokens = Tokenizer::new(sql).collect::<Result<Vec<_>>>()?;
+    for (pos, token) in tokens.iter_mut().enumerate() {
+        token.pos = pos
+    }
+
+    Ok(tokens)
 }
 
 /// Parse a SQL string into `Statement`s.

@@ -9,6 +9,7 @@ pub struct Token<'a> {
     pub source: &'a str,
     pub kind: TokenKind,
     pub span: Range,
+    pub pos: usize,
 }
 
 impl<'a> Token<'a> {
@@ -17,6 +18,7 @@ impl<'a> Token<'a> {
             source,
             kind: TokenKind::EOI,
             span: (source.len()..source.len()).into(),
+            pos: 0,
         }
     }
 
@@ -114,6 +116,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                             source: self.source,
                             kind,
                             span: self.lexer.span().into(),
+                            pos: 0,
                         }))
                     }
                     Err(_) => {
