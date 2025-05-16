@@ -2,8 +2,8 @@ use crate::ast::result_set_node::ResultSetNode;
 use derive_visitor::Drive;
 
 // SubqueryExpr represents a subquery.
-#[derive(Debug, Drive)]
-pub struct SubqueryExpr {
+#[derive(Debug, Drive, Default)]
+pub struct SubQueryExpr {
     // Query is the query SelectNode.
     pub query: Option<ResultSetNode>,
     #[drive(skip)]

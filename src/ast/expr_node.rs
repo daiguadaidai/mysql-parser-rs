@@ -3,7 +3,8 @@ use crate::ast::column_name::ColumnName;
 use crate::ast::common::FulltextSearchModifier;
 use crate::ast::functions::{GetFormatSelectorType, TimeUnitType, TrimDirectionType};
 use crate::ast::op_code;
-use crate::ast::subquery_expr::SubqueryExpr;
+use crate::ast::order_by_clause::OrderByClause;
+use crate::ast::subquery_expr::SubQueryExpr;
 use crate::ast::table_name::TableName;
 use crate::ast::window_spec::WindowSpec;
 use bigdecimal::BigDecimal;
@@ -16,7 +17,7 @@ pub enum ExprNode {
     Default,
     #[drive(skip)]
     ColumnNameExpr(ColumnNameExpr),
-    SubqueryExpr(SubqueryExpr),
+    SubQueryExpr(SubQueryExpr),
     RowExpr(RowExpr),
     VariableExpr(VariableExpr),
     BinaryOperationExpr(BinaryOperationExpr),
@@ -37,6 +38,7 @@ pub enum ExprNode {
     WindowFuncExpr(WindowFuncExpr),
     PositionExpr(PositionExpr),
     ParamMarkerExpr(ParamMarkerExpr),
+    AggregateFuncExpr(AggregateFuncExpr),
 }
 
 #[derive(Debug, Drive, Default)]
@@ -275,4 +277,20 @@ pub struct ParamMarkerExpr {
     pub start_pos: usize,
     #[drive(skip)]
     pub end_pos: usize,
+}
+
+// AggregateFuncExpr represents aggregate function expression.
+#[derive(Debug, Drive, Default)]
+pub struct AggregateFuncExpr {
+    // F is the function name.
+    #[drive(skip)]
+    pub f: String,
+    // Args is the function args.
+    pub args: Vec<ExprNode>,
+    // Distinct is true, function hence only aggregate distinct values.
+    // For example, column c1 values are "1", "2", "2",  "sum(c1)" is "5",
+    // but "sum(distinct c1)" is "3".
+    #[drive(skip)]
+    pub distinct: bool,
+    pub order: Option<OrderByClause>,
 }

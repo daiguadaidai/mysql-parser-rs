@@ -19,18 +19,24 @@ use nom::multi::many0;
 use nom_rule::rule;
 
 pub fn select_statement(i: Input) -> IResult<Statement> {
+    map(rule!(#select_stmt), |(sel_stmt)| {
+        Statement::SelectStmt(Box::new(sel_stmt))
+    })(i)
+}
+
+pub fn select_stmt(i: Input) -> IResult<SelectStmt> {
     let s1 = map(
         rule!(
             #select_stmt_basic
         ),
-        |mut select_stmt| Statement::SelectStmt(Box::new(select_stmt)),
+        |mut sel_stmt| sel_stmt,
     );
 
     let s2 = map(
         rule!(
             #select_stmt_basic
         ),
-        |mut select_stmt| Statement::SelectStmt(Box::new(select_stmt)),
+        |mut sel_stmt| sel_stmt,
     );
 
     alt((s1, s2))(i)

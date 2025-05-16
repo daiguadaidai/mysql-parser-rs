@@ -81,6 +81,15 @@ pub fn identifier(i: Input) -> IResult<String> {
     )(i)
 }
 
+pub fn ident_list(i: Input) -> IResult<Vec<CIStr>> {
+    map(rule!(#ident_string_list), |(idents)| {
+        idents.iter().map(|ident| CIStr::new(ident)).collect()
+    })(i)
+}
+pub fn ident_string_list(i: Input) -> IResult<Vec<String>> {
+    separated_list1(map(rule!(","), |_| ()), identifier)(i)
+}
+
 pub fn string_name(i: Input) -> IResult<String> {
     map(rule!(#string_lit | #identifier), |(s)| s)(i)
 }
@@ -219,4 +228,32 @@ pub fn opt_from_first_last_sub(i: Input) -> IResult<bool> {
         map(rule!(FROM ~ FIRST), |(_, _)| false),
         map(rule!(FROM ~ LAST), |(_, _)| true),
     ))(i)
+}
+
+pub fn buggy_default_false_distinct_opt(i: Input) -> IResult<bool> {
+    alt((
+        map(rule!(#default_false_distinct_opt), |b| b),
+        map(rule!(#distinct_kwd ~ ALL), |(_, _)| true),
+    ))(i)
+}
+
+pub fn default_false_distinct_opt(i: Input) -> IResult<bool> {
+    map(rule!(#distinct_opt?), |(b)| b.unwrap_or_else(|| false))(i)
+}
+
+pub fn distinct_opt(i: Input) -> IResult<bool> {
+    alt((
+        map(rule!(ALL), |(_)| false),
+        map(rule!(#distinct_kwd), |(b)| b),
+    ))(i)
+}
+
+pub fn distinct_kwd(i: Input) -> IResult<bool> {
+    map(rule!(DISTINCT | DISTINCTROW), |(_)| true)
+}
+
+pub fn opt_gconcat_separator(i: Input) -> IResult<ValueExpr> {
+    map(rule!(SEPARATOR ~ #string_lit), |(_, s)| {
+        ValueExpr::new(&s, ValueExprKind::String, "", "")
+    })
 }

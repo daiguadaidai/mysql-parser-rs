@@ -5,7 +5,7 @@ use crate::ast::order_by_clause::OrderByClause;
 use crate::ast::select_field::SelectField;
 use crate::ast::select_into_option::SelectIntoOption;
 use crate::ast::select_lock_info::SelectLockInfo;
-use crate::ast::set_or_type::SetOprType;
+use crate::ast::set_opr_stmt::SetOprType;
 use crate::ast::table_optimizer_hint::TableOptimizerHint;
 use crate::ast::table_refs_clause::TableRefsClause;
 use crate::ast::window_spec::WindowSpec;

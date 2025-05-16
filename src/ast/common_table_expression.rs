@@ -1,12 +1,12 @@
 use crate::ast::ci_str::CIStr;
-use crate::ast::subquery_expr::SubqueryExpr;
+use crate::ast::subquery_expr::SubQueryExpr;
 use derive_visitor::Drive;
 
 #[derive(Debug, Drive)]
 pub struct CommonTableExpression {
     #[drive(skip)]
     pub name: CIStr,
-    pub query: Option<SubqueryExpr>,
+    pub query: Option<SubQueryExpr>,
     #[drive(skip)]
     pub col_name_list: Vec<CIStr>,
     #[drive(skip)]

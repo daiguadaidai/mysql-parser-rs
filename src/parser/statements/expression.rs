@@ -1,9 +1,10 @@
 use crate::ast::ci_str::CIStr;
 use crate::ast::common::{FulltextSearchModifier, FULLTEXT_SEARCH_MODIFIER_NATURAL_LANGUAGE_MODE};
 use crate::ast::expr_node::{
-    BinaryOperationExpr, ExprNode, FuncCallExpr, FuncCallExprType, GetFormatSelectorExpr,
-    MatchAgainst, ParamMarkerExpr, PositionExpr, SetCollationExpr, TableNameExpr, TimeUnitExpr,
-    TrimDirectionExpr, UnaryOperationExpr, ValueExpr, ValueExprKind, VariableExpr, WindowFuncExpr,
+    AggregateFuncExpr, BinaryOperationExpr, ExprNode, FuncCallExpr, FuncCallExprType,
+    GetFormatSelectorExpr, MatchAgainst, ParamMarkerExpr, PositionExpr, SetCollationExpr,
+    TableNameExpr, TimeUnitExpr, TrimDirectionExpr, UnaryOperationExpr, ValueExpr, ValueExprKind,
+    VariableExpr, WindowFuncExpr,
 };
 use crate::ast::frame_clause::{BoundType, FrameBound, FrameClause, FrameExtent, FrameType};
 use crate::ast::functions;
@@ -18,9 +19,10 @@ use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::column_name::{column_name_list, simple_ident};
 use crate::parser::statements::common::{
-    collation_name, field_len, fulltext_search_modifier_opt, func_datetime_prec,
-    func_datetime_prec_list_opt, log_and, log_or, opt_from_first_last, opt_null_treatment,
-    optional_braces, string_lit, table_name, time_unit,
+    buggy_default_false_distinct_opt, collation_name, distinct_kwd, field_len,
+    fulltext_search_modifier_opt, func_datetime_prec, func_datetime_prec_list_opt, log_and, log_or,
+    opt_from_first_last, opt_gconcat_separator, opt_null_treatment, optional_braces, string_lit,
+    table_name, time_unit,
 };
 use crate::parser::statements::keywords::{
     function_name_conflict, function_name_date_arith, function_name_date_arith_multi_forms,
@@ -228,7 +230,7 @@ pub fn bit_expr(i: Input) -> IResult<ExprNode> {
                 r: Some(Box::new(r)),
             })
         }),
-        map(rule!(#simple_expr), |_| {}),
+        map(rule!(#simple_expr), |(expr)| expr),
     ))(i)
 }
 
@@ -269,10 +271,55 @@ pub fn simple_expr_sub_1(i: Input) -> IResult<ExprNode> {
             })
         }),
         map(rule!(#vairable), |(expr)| expr),
+        map(rule!(#sum_expr), |(expr)| expr),
+        map(rule!("!" ~ #simple_expr), |(_, expr)| {
+            ExprNode::UnaryOperationExpr(UnaryOperationExpr {
+                op: OpCode::Not2,
+                v: Some(Box::new(expr)),
+            })
+        }),
+        map(rule!("~" ~ #simple_expr), |(_, expr)| {
+            ExprNode::UnaryOperationExpr(UnaryOperationExpr {
+                op: OpCode::BitNeg,
+                v: Some(Box::new(expr)),
+            })
+        }),
+        map(rule!("-" ~ #simple_expr), |(_, expr)| {
+            ExprNode::UnaryOperationExpr(UnaryOperationExpr {
+                op: OpCode::Minus,
+                v: Some(Box::new(expr)),
+            })
+        }),
+        map(rule!("+" ~ #simple_expr), |(_, expr)| {
+            ExprNode::UnaryOperationExpr(UnaryOperationExpr {
+                op: OpCode::Plus,
+                v: Some(Box::new(expr)),
+            })
+        }),
+        map(
+            rule!(#simple_expr ~ PipesAsOr ~ #simple_expr),
+            |(expr1, _, expr2)| {
+                let mut fn_expr = FuncCallExpr::default();
+                fn_expr.fn_name = CIStr::new(functions::CONCAT);
+                fn_expr.args = vec![expr1, expr2];
+                ExprNode::FuncCallExpr(fn_expr)
+            },
+        ),
+        map(rule!(NOT2 ~ #simple_expr), |(_, expr)| {
+            ExprNode::UnaryOperationExpr(UnaryOperationExpr {
+                op: OpCode::Not2,
+                v: Some(Box::new(expr)),
+            })
+        }),
     ))(i)
 }
 
-pub fn simple_expr_sub_2(i: Input) -> IResult<ExprNode> {}
+pub fn simple_expr_sub_2(i: Input) -> IResult<ExprNode> {
+    alt((
+        map(rule!(#simple_ident), |expr| ExprNode::ColumnNameExpr(expr)),
+        map(rule!(#function_call_keyword), |expr| expr),
+    ))(i)
+}
 
 pub fn function_call_keyword(i: Input) -> IResult<ExprNode> {
     alt((
@@ -934,6 +981,10 @@ pub fn window_func_call(i: Input) -> IResult<WindowFuncExpr> {
     ))(i)
 }
 
+pub fn opt_windowing_clause(i: Input) -> IResult<Option<WindowSpec>> {
+    map(rule!(#windowing_clause?), |(spec)| spec)(i)
+}
+
 pub fn windowing_clause(i: Input) -> IResult<WindowSpec> {
     map(rule!(OVER ~ #window_name_or_spec), |(_, spec)| spec)(i)
 }
@@ -987,6 +1038,18 @@ pub fn opt_partition_clause(i: Input) -> IResult<PartitionByClause> {
     map(rule!(PARTITION ~ BY ~ #by_list), |(_, _, items)| {
         PartitionByClause { items }
     })
+}
+
+pub fn order_by_optional(i: Input) -> IResult<Option<OrderByClause>> {
+    map(rule!(#order_by?), |(clause)| clause)(i)
+}
+
+pub fn order_by(i: Input) -> IResult<OrderByClause> {
+    map(rule!(ORDER ~ BY ~ #by_list), |(_, _, items)| {
+        let mut order_by_clause = OrderByClause::default();
+        order_by_clause.items = items;
+        order_by_clause
+    })(i)
 }
 
 pub fn by_list(i: Input) -> IResult<Vec<ByItem>> {
@@ -1218,4 +1281,510 @@ pub fn opt_lead_lag_info(i: Input) -> IResult<Vec<ExprNode>> {
 
 pub fn opt_ll_default(i: Input) -> IResult<ExprNode> {
     map(rule!("," ~ #expression), |(_, expr)| expr)
+}
+
+pub fn sum_expr(i: Input) -> IResult<ExprNode> {
+    map(rule!(#sum_expr_1 | #sum_expr_2), |(expr)| expr)(i)
+}
+
+pub fn sum_expr_1(i: Input) -> IResult<ExprNode> {
+    alt((
+        map(
+            rule!(AVG ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(avg_token, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = avg_token.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = avg_token.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(APPROX_COUNT_DISTINCT ~ "(" ~ #expression_list ~ ")"),
+            |(t, _, exprs, _)| {
+                let mut agg_expr = AggregateFuncExpr::default();
+                agg_expr.f = t.text().to_string();
+                agg_expr.args = exprs;
+                ExprNode::AggregateFuncExpr(agg_expr)
+            },
+        ),
+        map(
+            rule!(APPROX_PERCENTILE ~ "(" ~ #expression_list ~ ")"),
+            |(t, _, exprs, _)| {
+                let mut agg_expr = AggregateFuncExpr::default();
+                agg_expr.f = t.text().to_string();
+                agg_expr.args = exprs;
+                ExprNode::AggregateFuncExpr(agg_expr)
+            },
+        ),
+        map(
+            rule!(BIT_AND ~ "(" ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(BIT_AND ~ "(" ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(BIT_OR ~ "(" ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(BIT_OR ~ "(" ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(BIT_XOR ~ "(" ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(BIT_XOR ~ "(" ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(COUNT ~ "(" ~ #distinct_kwd ~ #expression_list ~ ")"),
+            |(t, _, _, exprs, _)| {
+                let mut agg_expr = AggregateFuncExpr::default();
+                agg_expr.f = t.text().to_string();
+                agg_expr.args = exprs;
+                agg_expr.distinct = true;
+                ExprNode::AggregateFuncExpr(agg_expr)
+            },
+        ),
+        map(
+            rule!(COUNT ~ "(" ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(COUNT ~ "(" ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(COUNT ~ "(" ~ "*" ~ ")" ~ #opt_windowing_clause),
+            |(t, _, _, _, spec)| {
+                let expr = ExprNode::ValueExpr(ValueExpr::new(
+                    "1",
+                    ValueExprKind::I64(1),
+                    i.charset,
+                    i.collation,
+                ));
+                match spec {
+                    None => {
+                        let mut agg_expr = AggregateFuncExpr::default();
+                        agg_expr.f = t.text().to_string();
+                        agg_expr.args = vec![expr];
+                        ExprNode::AggregateFuncExpr(agg_expr)
+                    }
+                    Some(v) => {
+                        let mut func_expr = WindowFuncExpr::default();
+                        func_expr.name = t.text().to_string();
+                        func_expr.args = vec![expr];
+                        func_expr.spec = Some(v);
+                        ExprNode::WindowFuncExpr(func_expr)
+                    }
+                }
+            },
+        ),
+        map(
+            rule!(GROUP_CONCAT ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression_list ~ #order_by_optional ~ #opt_gconcat_separator ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, exprs, order, sep, _, spec)| {
+                let mut args = vec![];
+                args.extend(exprs);
+                args.push(ExprNode::ValueExpr(sep));
+                match spec {
+                    None => {
+                        let mut agg_expr = AggregateFuncExpr::default();
+                        agg_expr.f = t.text().to_string();
+                        agg_expr.args = args;
+                        agg_expr.distinct = distinct;
+                        agg_expr.order = order;
+                        ExprNode::AggregateFuncExpr(agg_expr)
+                    }
+                    Some(v) => {
+                        let mut func_expr = WindowFuncExpr::default();
+                        func_expr.name = t.text().to_string();
+                        func_expr.args = args;
+                        func_expr.distinct = distinct;
+                        func_expr.spec = Some(v);
+                        ExprNode::WindowFuncExpr(func_expr)
+                    }
+                }
+            },
+        ),
+    ))(i)
+}
+
+pub fn sum_expr_2(i: Input) -> IResult<ExprNode> {
+    alt((
+        map(
+            rule!(MAX ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(MIN ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(SUM ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(STDDEV_POP ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(STDDEV_SAMP ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(VAR_POP ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(VAR_SAMP ~ "(" ~ #buggy_default_false_distinct_opt ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, distinct, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    agg_expr.distinct = distinct;
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.distinct = distinct;
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(JSON_ARRAYAGG ~ "(" ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(JSON_ARRAYAGG ~ "(" ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, _, expr, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(JSON_OBJECTAGG ~ "(" ~ #expression ~ "," ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr1, _, expr2, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr1, expr2];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr1, expr2];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(JSON_OBJECTAGG ~ "(" ~ ALL ~ #expression ~ "," ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, _, expr1, _, expr2, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr1, expr2];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr1, expr2];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(JSON_OBJECTAGG ~ "(" ~ #expression ~ "," ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, expr1, _, _, expr2, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr1, expr2];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr1, expr2];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+        map(
+            rule!(JSON_OBJECTAGG ~ "(" ~ ALL ~ #expression ~ "," ~ ALL ~ #expression ~ ")" ~ #opt_windowing_clause),
+            |(t, _, _, expr1, _, _, expr2, _, spec)| match spec {
+                None => {
+                    let mut agg_expr = AggregateFuncExpr::default();
+                    agg_expr.f = t.text().to_string();
+                    agg_expr.args = vec![expr1, expr2];
+                    ExprNode::AggregateFuncExpr(agg_expr)
+                }
+                Some(v) => {
+                    let mut func_expr = WindowFuncExpr::default();
+                    func_expr.name = t.text().to_string();
+                    func_expr.args = vec![expr1, expr2];
+                    func_expr.spec = Some(v);
+                    ExprNode::WindowFuncExpr(func_expr)
+                }
+            },
+        ),
+    ))(i)
 }

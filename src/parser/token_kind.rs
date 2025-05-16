@@ -252,6 +252,8 @@ pub enum TokenKind {
     CONTINUE,
     #[token("CONVERT", ignore(ascii_case))]
     CONVERT,
+    #[token("COUNT", ignore(ascii_case))]
+    COUNT,
     #[token("CREATE", ignore(ascii_case))]
     CREATE,
     #[token("CROSS", ignore(ascii_case))]
@@ -476,6 +478,8 @@ pub enum TokenKind {
     NOW,
     #[token("NOT", ignore(ascii_case))]
     NOT,
+    #[token("NOT2", ignore(ascii_case))]
+    NOT2,
     #[token("NO_WRITE_TO_BINLOG", ignore(ascii_case))]
     NO_WRITE_TO_BINLOG,
     #[token("NTH_VALUE", ignore(ascii_case))]
