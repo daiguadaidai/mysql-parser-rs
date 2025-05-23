@@ -1,6 +1,6 @@
 use crate::ast::limit::Limit;
+use crate::ast::node::Node;
 use crate::ast::order_by_clause::OrderByClause;
-use crate::ast::statement::Statement;
 use crate::ast::with_clause::WithClause;
 use derive_visitor::Drive;
 
@@ -23,7 +23,7 @@ pub struct SetOprStmt {
 pub struct SetOprSelectList {
     pub with: Option<WithClause>,
     pub after_set_operator: Option<SetOprType>,
-    pub selects: Vec<Statement>,
+    pub selects: Vec<Node>,
     pub limit: Option<Limit>,
     pub order_by: Option<OrderByClause>,
 }

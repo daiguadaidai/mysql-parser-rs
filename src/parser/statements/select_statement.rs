@@ -1,7 +1,9 @@
 use crate::ast::ci_str::CIStr;
+use crate::ast::result_set_node::ResultSetNode;
 use crate::ast::select_field::{Field, SelectField, WildCardField};
 use crate::ast::select_stmt::{SelectStmt, SelectStmtKind, SelectStmtOpts};
 use crate::ast::statement::Statement;
+use crate::ast::subquery_expr::SubQueryExpr;
 use crate::ast::table_optimizer_hint::TableOptimizerHint;
 use crate::mysql::consts::PriorityEnum;
 use crate::parser::common::*;
@@ -9,6 +11,7 @@ use crate::parser::error::ErrorKind;
 use crate::parser::input::Input;
 use crate::parser::statements::common::priority;
 use crate::parser::statements::expression::expression;
+use crate::parser::statements::set_opr_stmt::set_opr_stmt;
 use crate::parser::statements::table_hints::table_optimizer_hints;
 use crate::parser::token_kind::TokenKind::{
     Ident, LiteralString, ALL, DISTINCT, DISTINCTROW, SELECT,
@@ -225,4 +228,21 @@ pub fn field_as_name(i: Input) -> IResult<String> {
     map(rule!("AS"? ~ (Ident | LiteralString)), |(_, s)| {
         s.text().to_string()
     })(i)
+}
+
+pub fn sub_select(i: Input) -> IResult<SubQueryExpr> {
+    alt((
+        map(rule!("(" ~ #select_stmt ~ ")"), |(_, stmt, _)| {
+            let mut sub_query = SubQueryExpr::default();
+            sub_query.query = Some(ResultSetNode::SelectStmt(Box::new(stmt)));
+
+            sub_query
+        }),
+        map(rule!("(" ~ #set_opr_stmt ~ ")"), |(_, stmt, _)| {
+            let mut sub_query = SubQueryExpr::default();
+            sub_query.query = Some(ResultSetNode::SetOprStmt(Box::new(stmt)));
+
+            sub_query
+        }),
+    ))(i)
 }

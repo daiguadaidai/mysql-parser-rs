@@ -5,7 +5,7 @@ pub mod keywords;
 pub mod literal;
 pub mod num_literal;
 pub mod select_statement;
-pub mod set_opt_stmt;
+pub mod set_opr_stmt;
 pub mod statement;
 pub mod table_hints;
 pub mod table_name;

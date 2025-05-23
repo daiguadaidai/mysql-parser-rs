@@ -241,6 +241,10 @@ pub fn default_false_distinct_opt(i: Input) -> IResult<bool> {
     map(rule!(#distinct_opt?), |(b)| b.unwrap_or_else(|| false))(i)
 }
 
+pub fn default_true_distinct_opt(i: Input) -> IResult<bool> {
+    map(rule!(#distinct_opt?), |(b)| b.unwrap_or_else(|| true))(i)
+}
+
 pub fn distinct_opt(i: Input) -> IResult<bool> {
     alt((
         map(rule!(ALL), |(_)| false),
