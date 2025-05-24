@@ -12,6 +12,7 @@ use crate::ast::window_spec::WindowSpec;
 use crate::ast::with_clause::WithClause;
 use crate::mysql;
 use derive_visitor::Drive;
+use std::rc::Rc;
 
 #[derive(Debug, Default)]
 pub enum SelectStmtKind {
@@ -55,9 +56,9 @@ pub struct SelectStmt {
     // WindowSpecs is the window specification list.
     pub window_specs: Vec<WindowSpec>,
     // OrderBy is the ordering expression list.
-    pub order_by: Option<OrderByClause>,
+    pub order_by: Option<Rc<OrderByClause>>,
     // Limit is the limit clause.
-    pub limit: Option<Limit>,
+    pub limit: Option<Rc<Limit>>,
     // LockInfo is the lock type
     pub lock_info: Option<SelectLockInfo>,
     // IsInBraces indicates whether it's a stmt in brace.
@@ -81,7 +82,7 @@ pub struct SelectStmt {
     pub kind: SelectStmtKind,
     // Lists is filled only when Kind == SelectStmtKindValues
     pub lists: Vec<RowExpr>,
-    pub with: Option<WithClause>,
+    pub with: Option<Rc<WithClause>>,
     // AsViewSchema indicates if this stmt provides the schema for the view. It is only used when creating the view
     #[drive(skip)]
     pub as_view_schema: bool,

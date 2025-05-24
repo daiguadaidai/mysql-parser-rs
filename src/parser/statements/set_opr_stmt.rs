@@ -1,7 +1,10 @@
+use crate::ast::limit::Limit;
 use crate::ast::node::Node;
+use crate::ast::order_by_clause::OrderByClause;
 use crate::ast::result_set_node::ResultSetNode;
 use crate::ast::set_opr_stmt::{SetOprSelectList, SetOprStmt, SetOprType};
 use crate::ast::statement::Statement;
+use crate::ast::with_clause::WithClause;
 use crate::parser::common::*;
 use crate::parser::input::Input;
 use crate::parser::statements::common::default_true_distinct_opt;
@@ -12,6 +15,7 @@ use crate::parser::token_kind::TokenKind::*;
 use nom::branch::alt;
 use nom::combinator::map;
 use nom_rule::rule;
+use std::rc::Rc;
 
 pub fn set_opr_stmt(i: Input) -> IResult<SetOprStmt> {
     alt((
@@ -39,7 +43,81 @@ pub fn set_opr_stmt(i: Input) -> IResult<SetOprStmt> {
 // See https://dev.mysql.com/doc/refman/5.7/en/union.html
 // See https://mariadb.com/kb/en/intersect/
 // See https://mariadb.com/kb/en/except/
-pub fn set_opr_stmt_wout_limit_order_by(i: Input) -> IResult<SetOprStmt> {}
+pub fn set_opr_stmt_wout_limit_order_by(i: Input) -> IResult<SetOprStmt> {
+    alt((
+        map(
+            rule!(#set_opr_clause_list ~ #set_opr ~ #select_stmt),
+            |(list, op, mut st)| {
+                let mut ssl = SetOprSelectList::default();
+                ssl.selects = list;
+
+                let mut so = SetOprStmt::default();
+                so.select_list = Some(ssl);
+                so.limit = st.limit;
+                so.order_by = st.order_by;
+
+                st.limit = None;
+                st.order_by = None;
+                st.after_set_operator = Some(op);
+
+                so.select_list
+                    .as_mut()
+                    .unwrap()
+                    .selects
+                    .push(Node::new_select_stmt(st));
+
+                so
+            },
+        ),
+        map(
+            rule!(#set_opr_clause_list ~ #set_opr ~ #sub_select),
+            |(mut list, op, mut st)| {
+                let mut set_opr_list2 = Vec::<Node>::new();
+                let mut with2: Option<Rc<WithClause>> = None;
+                let mut limit2: Option<Rc<Limit>> = None;
+                let mut order_by2: Option<Rc<OrderByClause>> = None;
+
+                if let Some(q) = st.query {
+                    match q {
+                        ResultSetNode::SelectStmt(ss) => {
+                            with2 = ss.with.clone();
+                            set_opr_list2.push(Node::new_select_stmt_by_ref(ss));
+                        }
+                        ResultSetNode::SetOprStmt(ss) => {
+                            // child setOprStmt's limit and order should also make sense
+                            // we should separate it out from other normal SetOprSelectList.
+                            with2 = ss.with.clone();
+                            limit2 = ss.limit.clone();
+                            order_by2 = ss.order_by.clone();
+                            set_opr_list2 = match ss.select_list {
+                                None => vec![],
+                                Some(v) => v.selects,
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let next_set_opr_list = SetOprSelectList {
+                    with: with2,
+                    after_set_operator: Some(op),
+                    selects: set_opr_list2,
+                    limit: limit2,
+                    order_by: order_by2,
+                };
+
+                list.push(Node::new_set_opr_select_list(next_set_opr_list));
+                let mut sosl = SetOprSelectList::default();
+                sosl.selects = list;
+
+                let mut so = SetOprStmt::default();
+                so.select_list = Some(sosl);
+
+                so
+            },
+        ),
+    ))(i)
+}
 
 pub fn set_opr_stmt_with_limit_order_by(i: Input) -> IResult<SetOprStmt> {}
 
@@ -55,7 +133,7 @@ pub fn set_opr_clause(i: Input) -> IResult<Vec<Node>> {
             Some(v) => match v {
                 ResultSetNode::SelectStmt(s_stmt) => {
                     let mut select_list = SetOprSelectList::default();
-                    select_list.selects = vec![Node::Statement(Statement::SelectStmt(s_stmt))];
+                    select_list.selects = vec![Node::new_select_stmt_by_ref(s_stmt)];
 
                     vec![Node::SetOprSelectList(Box::new(select_list))]
                 }
@@ -65,7 +143,7 @@ pub fn set_opr_clause(i: Input) -> IResult<Vec<Node>> {
                         Some(ss) => ss.selects,
                     };
 
-                    let mut select_list = SetOprSelectList {
+                    let select_list = SetOprSelectList {
                         with: so_stmt.with,
                         after_set_operator: None,
                         selects,
@@ -73,7 +151,7 @@ pub fn set_opr_clause(i: Input) -> IResult<Vec<Node>> {
                         order_by: so_stmt.order_by,
                     };
 
-                    vec![Node::SetOprSelectList(Box::new(select_list))]
+                    vec![Node::new_set_opr_select_list(select_list)]
                 }
                 _ => {
                     vec![]
